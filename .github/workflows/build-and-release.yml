@@ -1,6 +1,8 @@
 name: Build FFmpeg (Monthly) and Release
 
 on:
+  push:
+    branches: [ main ]
   schedule:
     - cron: '0 0 1 * *'   # 00:00 UTC on the 1st of every month
   workflow_dispatch:
@@ -246,6 +248,8 @@ jobs:
 
   release:
     name: Publish Release
+    # Skip creating a GitHub Release for regular branch pushes; allow for schedules, manual runs, or tag pushes
+    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
     needs: [resolve_ref, build]
     runs-on: ubuntu-latest
     steps:
