@@ -1,0 +1,278 @@
+name: Build FFmpeg (Monthly) and Release
+
+on:
+  schedule:
+    - cron: '0 0 1 * *'   # 00:00 UTC on the 1st of every month
+  workflow_dispatch:
+    inputs:
+      ffmpeg_ref:
+        description: 'FFmpeg ref (tag like n7.1, branch, or commit SHA). Leave empty for latest stable tag.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write  # needed to create releases
+
+jobs:
+  resolve_ref:
+    name: Resolve FFmpeg ref
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.resolve.outputs.ref }}
+      tag: ${{ steps.resolve.outputs.tag }}
+      date: ${{ steps.date.outputs.date }}
+    steps:
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl
+
+      - name: Compute date stamp
+        id: date
+        run: echo "date=$(date -u +'%Y%m')" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve ref (latest stable tag if empty)
+        id: resolve
+        env:
+          INPUT_REF: ${{ github.event.inputs.ffmpeg_ref }}
+        run: |
+          if [ -n "$INPUT_REF" ]; then
+            echo "Using provided ref: $INPUT_REF"
+            echo "ref=$INPUT_REF" >> "$GITHUB_OUTPUT"
+            # If it's a tag starting with n, also set tag; else leave empty
+            if echo "$INPUT_REF" | grep -Eq '^n[0-9]+(\.[0-9]+)*$'; then
+              echo "tag=$INPUT_REF" >> "$GITHUB_OUTPUT"
+            else
+              echo "tag=" >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+
+          echo "Fetching tags from FFmpeg..."
+          # Get tags, pick the highest nX[.Y] style tag
+          TAG=$(curl -fsSL "https://api.github.com/repos/FFmpeg/FFmpeg/tags?per_page=100" \
+            | jq -r '.[].name' \
+            | grep -E '^n[0-9]+(\.[0-9]+)*$' \
+            | sort -Vr \
+            | head -n1)
+
+          if [ -z "$TAG" ]; then
+            echo "Failed to resolve latest FFmpeg tag" >&2
+            exit 1
+          fi
+
+          echo "ref=$TAG" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build (${{ matrix.os }})
+    needs: resolve_ref
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    env:
+      FFMPEG_REF: ${{ needs.resolve_ref.outputs.ref }}
+      FFMPEG_TAG: ${{ needs.resolve_ref.outputs.tag }}
+      DATE_STAMP: ${{ needs.resolve_ref.outputs.date }}
+
+    steps:
+      - name: Checkout repo (for README/workflow context)
+        uses: actions/checkout@v4
+
+      - name: Print ref
+        shell: bash
+        run: |
+          echo "FFMPEG_REF=$FFMPEG_REF"
+          echo "FFMPEG_TAG=$FFMPEG_TAG"
+          echo "DATE_STAMP=$DATE_STAMP"
+
+      # ---------- Linux ----------
+      - name: Install deps (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential yasm nasm git pkg-config curl zip jq
+
+      - name: Build FFmpeg (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git clone https://github.com/FFmpeg/FFmpeg.git
+          cd FFmpeg
+          git checkout "$FFMPEG_REF"
+          ./configure \
+            --prefix="$PWD/install" \
+            --disable-debug \
+            --disable-doc \
+            --enable-static \
+            --disable-shared
+          make -j"$(nproc)"
+          make install
+
+          mkdir -p package/bin package/LICENSES
+          cp -v install/bin/ffmpeg install/bin/ffprobe package/bin/
+          # licenses
+          cp -v COPYING.LGPLv2.1 LICENSE.md package/LICENSES/ 2>/dev/null || true
+          cp -v COPYING.GPLv2 package/LICENSES/ 2>/dev/null || true
+          cp -v LICENSE.md package/LICENSES/ 2>/dev/null || true
+
+          jq -n \
+            --arg ref "$FFMPEG_REF" \
+            --arg tag "${FFMPEG_TAG:-}" \
+            --arg os "$RUNNER_OS" \
+            --arg date "$DATE_STAMP" \
+            '{ref:$ref, tag:$tag, os:$os, date:$date, notes:"Built with built-in codecs only (no external libs)."}' \
+            > package/BUILD-INFO.json
+
+          ART="ffmpeg-${FFMPEG_TAG:-$FFMPEG_REF}-${RUNNER_OS}-x86_64.zip"
+          (cd package && zip -r "../$ART" .)
+          echo "ARTIFACT=$ART" >> "$GITHUB_ENV"
+
+      # ---------- macOS ----------
+      - name: Install deps (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install yasm nasm jq
+
+      - name: Build FFmpeg (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git clone https://github.com/FFmpeg/FFmpeg.git
+          cd FFmpeg
+          git checkout "$FFMPEG_REF"
+          ./configure \
+            --prefix="$PWD/install" \
+            --disable-debug \
+            --disable-doc
+          make -j"$(sysctl -n hw.logicalcpu)"
+          make install
+
+          mkdir -p package/bin package/LICENSES
+          cp -v install/bin/ffmpeg install/bin/ffprobe package/bin/
+          # licenses
+          cp -v COPYING.LGPLv2.1 LICENSE.md package/LICENSES/ 2>/dev/null || true
+          cp -v COPYING.GPLv2 package/LICENSES/ 2>/dev/null || true
+          cp -v LICENSE.md package/LICENSES/ 2>/dev/null || true
+
+          jq -n \
+            --arg ref "$FFMPEG_REF" \
+            --arg tag "${FFMPEG_TAG:-}" \
+            --arg os "$RUNNER_OS" \
+            --arg date "$DATE_STAMP" \
+            '{ref:$ref, tag:$tag, os:$os, date:$date, notes:"Shared build on macOS (static linking limited)."}' \
+            > package/BUILD-INFO.json
+
+          ART="ffmpeg-${FFMPEG_TAG:-$FFMPEG_REF}-${RUNNER_OS}-x86_64.zip"
+          (cd package && zip -r "../$ART" .)
+          echo "ARTIFACT=$ART" >> "$GITHUB_ENV"
+
+      # ---------- Windows (MSYS2) ----------
+      - name: Setup MSYS2
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: >-
+            base-devel
+            git
+            zip
+            nasm
+            yasm
+            mingw-w64-x86_64-toolchain
+
+      - name: Build FFmpeg (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          set -euxo pipefail
+          git clone https://github.com/FFmpeg/FFmpeg.git
+          cd FFmpeg
+          git checkout "$FFMPEG_REF"
+          ./configure \
+            --prefix="$PWD/install" \
+            --target-os=mingw32 \
+            --arch=x86_64 \
+            --disable-debug \
+            --disable-doc \
+            --enable-static \
+            --disable-shared
+          make -j"$(nproc)"
+          make install
+
+          mkdir -p package/bin package/LICENSES
+          cp -v install/bin/ffmpeg.exe install/bin/ffprobe.exe package/bin/
+          # licenses
+          cp -v COPYING.LGPLv2.1 LICENSE.md package/LICENSES/ || true
+          cp -v COPYING.GPLv2 package/LICENSES/ || true
+          cp -v LICENSE.md package/LICENSES/ || true
+
+          printf '{"ref":"%s","tag":"%s","os":"%s","date":"%s","notes":"Static build for Windows (MSYS2)"}' \
+            "$FFMPEG_REF" "${FFMPEG_TAG:-}" "$RUNNER_OS" "$DATE_STAMP" > package/BUILD-INFO.json
+
+          ART="ffmpeg-${FFMPEG_TAG:-$FFMPEG_REF}-${RUNNER_OS}-x86_64.zip"
+          cd package && zip -r "../$ART" . && cd ..
+          echo "ARTIFACT=$ART" >> "$GITHUB_ENV"
+
+      # Upload artifact (Linux)
+      - name: Upload artifact (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-Linux-x86_64.zip
+          path: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-Linux-x86_64.zip
+
+      # Upload artifact (macOS)
+      - name: Upload artifact (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-macOS-x86_64.zip
+          path: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-macOS-x86_64.zip
+
+      # Upload artifact (Windows)
+      - name: Upload artifact (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-Windows-x86_64.zip
+          path: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-Windows-x86_64.zip
+
+  release:
+    name: Publish Release
+    needs: [resolve_ref, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: List artifacts
+        run: |
+          ls -la ./artifacts
+          find ./artifacts -type f -maxdepth 2 -print
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ needs.resolve_ref.outputs.tag != '' && needs.resolve_ref.outputs.tag || needs.resolve_ref.outputs.ref }}-${{ needs.resolve_ref.outputs.date }}
+          name: FFmpeg ${{ needs.resolve_ref.outputs.tag != '' && needs.resolve_ref.outputs.tag || needs.resolve_ref.outputs.ref }} Monthly Build (${{ needs.resolve_ref.outputs.date }})
+          body: |
+            Automated monthly build of FFmpeg.
+
+            Upstream ref: ${{ needs.resolve_ref.outputs.ref }}
+            Upstream tag: ${{ needs.resolve_ref.outputs.tag }}
+            Date: ${{ needs.resolve_ref.outputs.date }}
+
+            Binaries are built with built-in codecs only (no external libs / nonfree components).
+          files: |
+            artifacts/**/ffmpeg-*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

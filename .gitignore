@@ -1,0 +1,19 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Build artifacts
+build/
+dist/
+*.zip
+*.tar.gz
+*.7z
+
+# Node / Python (if ever used)
+node_modules/
+*.pyc
+__pycache__/
