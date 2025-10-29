@@ -226,7 +226,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-Linux-x86_64.zip
-          path: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-Linux-x86_64.zip
+          path: FFmpeg/ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-Linux-x86_64.zip
 
       # Upload artifact (macOS)
       - name: Upload artifact (macOS)
@@ -234,7 +234,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-macOS-x86_64.zip
-          path: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-macOS-x86_64.zip
+          path: FFmpeg/ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-macOS-x86_64.zip
 
       # Upload artifact (Windows)
       - name: Upload artifact (Windows)
@@ -242,7 +242,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-Windows-x86_64.zip
-          path: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-Windows-x86_64.zip
+          path: FFmpeg/ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-Windows-x86_64.zip
 
   release:
     name: Publish Release
