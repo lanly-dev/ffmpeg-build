@@ -8,7 +8,7 @@ This repository automates building FFmpeg from upstream once a month for Windows
 - Release: A GitHub Release is created per run with all platform assets
 
 ## What gets built
-By default, this builds FFmpeg with built-in codecs only (no external libraries, no nonfree/GPL components). This keeps builds portable and licensing straightforward. You can customize the `./configure` flags in the workflow to enable more libraries if needed.
+By default, this builds FFmpeg with built-in codecs only (no external libraries. This keeps builds portable and licensing straightforward. You can customize the `./configure` flags in the workflow to enable more libraries if needed.
 
 Notes:
 - Linux: static build (reduced runtime deps)
@@ -33,14 +33,9 @@ Each archive includes:
 - `LICENSES/` (FFmpeg licensing files)
 - `BUILD-INFO.json` (upstream ref, build date, configure flags)
 
-## Licensing
-- FFmpeg is licensed under LGPL/GPL depending on configuration. This workflow does NOT enable GPL or nonfree components.
-- If you change `--enable-gpl` or add nonfree libs, ensure you comply with FFmpeg licensing and distribution requirements.
-
 ## Customize configure flags
 Edit `.github/workflows/build-and-release.yml` and adjust the `./configure` commands per OS.
 
 ## Troubleshooting
 - Windows builds can be slower due to toolchain bootstrap. If timing out, reduce features or use smaller runners.
-- If the upstream tag hasn’t changed since last month, this still produces a new dated release. You can change the release tag pattern if you prefer otherwise.
-
+- If the upstream tag has't changed since last month, this still produces a new dated release. You can change the release tag pattern if you prefer otherwise.

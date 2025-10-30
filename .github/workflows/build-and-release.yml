@@ -96,7 +96,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential yasm nasm git pkg-config curl zip jq
+          sudo apt-get install -y build-essential yasm nasm git pkg-config curl zip jq musl-tools file
 
       - name: Build FFmpeg (Linux)
         if: runner.os == 'Linux'
@@ -106,18 +106,26 @@ jobs:
           git clone https://github.com/FFmpeg/FFmpeg.git
           cd FFmpeg
           git checkout "$FFMPEG_REF"
+          # Build fully static using musl
+          export CC=musl-gcc
           ./configure \
             --prefix="$PWD/install" \
             --disable-debug \
             --disable-doc \
             --enable-static \
-            --disable-shared
+            --disable-shared \
+            --extra-ldflags="-static"
           make -j"$(nproc)"
           make install
 
           mkdir -p package package/LICENSES
           # Flatten: place binaries at package root
           cp -v install/bin/ffmpeg install/bin/ffprobe package/
+          # Diagnostics: sizes and deps
+          (cd package && ls -lah > FILES.txt)
+          (cd package && file ./ffmpeg ./ffprobe > FILE-TYPE.txt)
+          (cd package && ldd ./ffmpeg > DEPS-ffmpeg.txt 2>&1 || true)
+          (cd package && ldd ./ffprobe > DEPS-ffprobe.txt 2>&1 || true)
           # licenses
           cp -v COPYING.LGPLv2.1 LICENSE.md package/LICENSES/ 2>/dev/null || true
           cp -v COPYING.GPLv2 package/LICENSES/ 2>/dev/null || true
@@ -163,6 +171,10 @@ jobs:
           mkdir -p package package/LICENSES
           # Flatten: place binaries at package root
           cp -v install/bin/ffmpeg install/bin/ffprobe package/
+          # Diagnostics: sizes and deps
+          (cd package && ls -lah > FILES.txt)
+          (cd package && otool -L ./ffmpeg > DEPS-ffmpeg.txt 2>&1 || true)
+          (cd package && otool -L ./ffprobe > DEPS-ffprobe.txt 2>&1 || true)
           # licenses
           cp -v COPYING.LGPLv2.1 LICENSE.md package/LICENSES/ 2>/dev/null || true
           cp -v COPYING.GPLv2 package/LICENSES/ 2>/dev/null || true
@@ -219,6 +231,10 @@ jobs:
           mkdir -p package package/LICENSES
           # Flatten: place binaries at package root
           cp -v install/bin/ffmpeg.exe install/bin/ffprobe.exe package/
+          # Diagnostics: sizes and deps (PE imports)
+          (cd package && ls -lah > FILES.txt)
+          (cd package && objdump -p ./ffmpeg.exe | grep -i 'DLL Name' > DEPS-ffmpeg.txt 2>&1 || true)
+          (cd package && objdump -p ./ffprobe.exe | grep -i 'DLL Name' > DEPS-ffprobe.txt 2>&1 || true)
           # licenses
           cp -v COPYING.LGPLv2.1 LICENSE.md package/LICENSES/ || true
           cp -v COPYING.GPLv2 package/LICENSES/ || true
@@ -283,7 +299,6 @@ jobs:
             Upstream tag: ${{ needs.resolve_ref.outputs.tag }}
             Date: ${{ needs.resolve_ref.outputs.date }}
 
-            Binaries are built with built-in codecs only (no external libs / nonfree components).
           files: |
             artifacts/**/ffmpeg-*.zip
         env:
