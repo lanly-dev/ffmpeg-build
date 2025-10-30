@@ -258,8 +258,6 @@ jobs:
 
   release:
     name: Publish Release
-    # Skip creating a GitHub Release for regular branch pushes; allow for schedules, manual runs, or tag pushes
-    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
     needs: [resolve_ref, build]
     runs-on: ubuntu-latest
     steps:
@@ -276,8 +274,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ needs.resolve_ref.outputs.tag != '' && needs.resolve_ref.outputs.tag || needs.resolve_ref.outputs.ref }}-${{ needs.resolve_ref.outputs.date }}
-          name: FFmpeg ${{ needs.resolve_ref.outputs.tag != '' && needs.resolve_ref.outputs.tag || needs.resolve_ref.outputs.ref }} Monthly Build (${{ needs.resolve_ref.outputs.date }})
+          tag_name: build-${{ needs.resolve_ref.outputs.tag != '' && needs.resolve_ref.outputs.tag || needs.resolve_ref.outputs.ref }}-${{ needs.resolve_ref.outputs.date }}${{ github.event_name == 'push' && format('-%s', github.run_number) || '' }}
+          name: FFmpeg ${{ needs.resolve_ref.outputs.tag != '' && needs.resolve_ref.outputs.tag || needs.resolve_ref.outputs.ref }} Build (${{ needs.resolve_ref.outputs.date }})
           body: |
             Automated monthly build of FFmpeg.
 
