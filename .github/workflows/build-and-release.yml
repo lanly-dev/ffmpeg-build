@@ -115,8 +115,9 @@ jobs:
           make -j"$(nproc)"
           make install
 
-          mkdir -p package/bin package/LICENSES
-          cp -v install/bin/ffmpeg install/bin/ffprobe package/bin/
+          mkdir -p package package/LICENSES
+          # Flatten: place binaries at package root
+          cp -v install/bin/ffmpeg install/bin/ffprobe package/
           # licenses
           cp -v COPYING.LGPLv2.1 LICENSE.md package/LICENSES/ 2>/dev/null || true
           cp -v COPYING.GPLv2 package/LICENSES/ 2>/dev/null || true
@@ -131,7 +132,8 @@ jobs:
             > package/BUILD-INFO.json
 
           ART="ffmpeg-${FFMPEG_TAG:-$FFMPEG_REF}-${RUNNER_OS}-x86_64.zip"
-          (cd package && zip -r "../$ART" .)
+          # Zip with flat structure
+          (cd package && zip -r -q "../$ART" .)
           echo "ARTIFACT=$ART" >> "$GITHUB_ENV"
 
       # ---------- macOS ----------
@@ -152,12 +154,15 @@ jobs:
           ./configure \
             --prefix="$PWD/install" \
             --disable-debug \
-            --disable-doc
+            --disable-doc \
+            --enable-static \
+            --disable-shared
           make -j"$(sysctl -n hw.logicalcpu)"
           make install
 
-          mkdir -p package/bin package/LICENSES
-          cp -v install/bin/ffmpeg install/bin/ffprobe package/bin/
+          mkdir -p package package/LICENSES
+          # Flatten: place binaries at package root
+          cp -v install/bin/ffmpeg install/bin/ffprobe package/
           # licenses
           cp -v COPYING.LGPLv2.1 LICENSE.md package/LICENSES/ 2>/dev/null || true
           cp -v COPYING.GPLv2 package/LICENSES/ 2>/dev/null || true
@@ -172,7 +177,8 @@ jobs:
             > package/BUILD-INFO.json
 
           ART="ffmpeg-${FFMPEG_TAG:-$FFMPEG_REF}-${RUNNER_OS}-x86_64.zip"
-          (cd package && zip -r "../$ART" .)
+          # Zip with flat structure
+          (cd package && zip -r -q "../$ART" .)
           echo "ARTIFACT=$ART" >> "$GITHUB_ENV"
 
       # ---------- Windows (MSYS2) ----------
@@ -204,12 +210,15 @@ jobs:
             --disable-debug \
             --disable-doc \
             --enable-static \
-            --disable-shared
+            --disable-shared \
+            --pkg-config-flags="--static" \
+            --extra-ldflags="-static -static-libgcc -static-libstdc++"
           make -j"$(nproc)"
           make install
 
-          mkdir -p package/bin package/LICENSES
-          cp -v install/bin/ffmpeg.exe install/bin/ffprobe.exe package/bin/
+          mkdir -p package package/LICENSES
+          # Flatten: place binaries at package root
+          cp -v install/bin/ffmpeg.exe install/bin/ffprobe.exe package/
           # licenses
           cp -v COPYING.LGPLv2.1 LICENSE.md package/LICENSES/ || true
           cp -v COPYING.GPLv2 package/LICENSES/ || true
@@ -219,7 +228,8 @@ jobs:
             "$FFMPEG_REF" "${FFMPEG_TAG:-}" "$RUNNER_OS" "$DATE_STAMP" > package/BUILD-INFO.json
 
           ART="ffmpeg-${FFMPEG_TAG:-$FFMPEG_REF}-${RUNNER_OS}-x86_64.zip"
-          cd package && zip -r "../$ART" . && cd ..
+          # Zip with flat structure
+          cd package && zip -r -q "../$ART" . && cd ..
           echo "ARTIFACT=$ART" >> "$GITHUB_ENV"
 
       # Upload artifact (Linux)
