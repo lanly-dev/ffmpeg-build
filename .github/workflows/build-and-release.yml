@@ -135,8 +135,9 @@ jobs:
             --arg ref "$FFMPEG_REF" \
             --arg tag "${FFMPEG_TAG:-}" \
             --arg os "$RUNNER_OS" \
+            --arg arch "$(uname -m)" \
             --arg date "$DATE_STAMP" \
-            '{ref:$ref, tag:$tag, os:$os, date:$date, notes:"Built with built-in codecs only (no external libs)."}' \
+            '{ref:$ref, tag:$tag, os:$os, arch:$arch, date:$date, notes:"Built with built-in codecs only (no external libs)."}' \
             > package/BUILD-INFO.json
 
           # no zip; artifacts uploaded directly from package/
@@ -181,8 +182,9 @@ jobs:
             --arg ref "$FFMPEG_REF" \
             --arg tag "${FFMPEG_TAG:-}" \
             --arg os "$RUNNER_OS" \
+            --arg arch "$(uname -m)" \
             --arg date "$DATE_STAMP" \
-            '{ref:$ref, tag:$tag, os:$os, date:$date, notes:"Shared build on macOS (static linking limited)."}' \
+            '{ref:$ref, tag:$tag, os:$os, arch:$arch, date:$date, notes:"Shared build on macOS (static linking limited)."}' \
             > package/BUILD-INFO.json
 
           # no zip; artifacts uploaded directly from package/
@@ -236,6 +238,9 @@ jobs:
 
           printf '{"ref":"%s","tag":"%s","os":"%s","date":"%s","notes":"Static build for Windows (MSYS2)"}' \
             "$FFMPEG_REF" "${FFMPEG_TAG:-}" "$RUNNER_OS" "$DATE_STAMP" > package/BUILD-INFO.json
+          # Add arch to BUILD-INFO.json for Windows
+          ARCH=$(uname -m)
+          jq --arg arch "$ARCH" '.arch = $arch' package/BUILD-INFO.json > package/BUILD-INFO.tmp && mv package/BUILD-INFO.tmp package/BUILD-INFO.json
 
           # no zip; artifacts uploaded directly from package/
 
@@ -244,7 +249,7 @@ jobs:
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-Linux-x86_64
+          name: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-Linux
           path: FFmpeg/package/**
           if-no-files-found: error
 
@@ -253,7 +258,7 @@ jobs:
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-macOS-x86_64
+          name: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-macOS
           path: FFmpeg/package/**
           if-no-files-found: error
 
@@ -262,7 +267,7 @@ jobs:
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-Windows-x86_64
+          name: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-Windows
           path: FFmpeg/package/**
           if-no-files-found: error
 
@@ -281,6 +286,52 @@ jobs:
           ls -la ./artifacts
           find ./artifacts -type f -maxdepth 2 -print
 
+      - name: Prepare release files (rename per-OS)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p release
+          for d in artifacts/*; do
+            [ -d "$d" ] || continue
+            os=""
+            case "$(basename "$d")" in
+              *Linux*) os="linux" ;;
+              *Windows*) os="windows" ;;
+              *macOS*) os="macos" ;;
+              *) os="" ;;
+            esac
+            [ -n "$os" ] || continue
+            root="$d"
+            if [ -d "$d/FFmpeg/package" ]; then
+              root="$d/FFmpeg/package"
+            fi
+            # binaries
+            if [ -f "$root/ffmpeg.exe" ]; then
+              cp -f "$root/ffmpeg.exe" "release/ffmpeg-$os.exe"
+            elif [ -f "$root/ffmpeg" ]; then
+              cp -f "$root/ffmpeg" "release/ffmpeg-$os"
+            fi
+            if [ -f "$root/ffprobe.exe" ]; then
+              cp -f "$root/ffprobe.exe" "release/ffprobe-$os.exe"
+            elif [ -f "$root/ffprobe" ]; then
+              cp -f "$root/ffprobe" "release/ffprobe-$os"
+            fi
+            # metadata
+            [ -f "$root/BUILD-INFO.json" ] && cp -f "$root/BUILD-INFO.json" "release/BUILD-INFO-$os.json" || true
+            [ -f "$root/FILES.txt" ] && cp -f "$root/FILES.txt" "release/FILES-$os.txt" || true
+            [ -f "$root/DEPS-ffmpeg.txt" ] && cp -f "$root/DEPS-ffmpeg.txt" "release/DEPS-ffmpeg-$os.txt" || true
+            [ -f "$root/DEPS-ffprobe.txt" ] && cp -f "$root/DEPS-ffprobe.txt" "release/DEPS-ffprobe-$os.txt" || true
+            [ -f "$root/FILE-TYPE.txt" ] && cp -f "$root/FILE-TYPE.txt" "release/FILE-TYPE-$os.txt" || true
+            # licenses (prefix filenames with OS to avoid release asset name collisions)
+            if [ -d "$root/LICENSES" ]; then
+              for f in "$root"/LICENSES/*; do
+                [ -f "$f" ] || continue
+                base=$(basename "$f")
+                cp -f "$f" "release/${os}-LICENSE-${base}"
+              done
+            fi
+          done
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -294,13 +345,6 @@ jobs:
             Date: ${{ needs.resolve_ref.outputs.date }}
 
           files: |
-            artifacts/**/ffmpeg
-            artifacts/**/ffmpeg.exe
-            artifacts/**/ffprobe
-            artifacts/**/ffprobe.exe
-            artifacts/**/BUILD-INFO.json
-            artifacts/**/FILES.txt
-            artifacts/**/DEPS-*.txt
-            artifacts/**/LICENSES/**
+            release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
