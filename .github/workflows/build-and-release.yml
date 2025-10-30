@@ -139,10 +139,7 @@ jobs:
             '{ref:$ref, tag:$tag, os:$os, date:$date, notes:"Built with built-in codecs only (no external libs)."}' \
             > package/BUILD-INFO.json
 
-          ART="ffmpeg-${FFMPEG_TAG:-$FFMPEG_REF}-${RUNNER_OS}-x86_64.zip"
-          # Zip with flat structure
-          (cd package && zip -r -q "../$ART" .)
-          echo "ARTIFACT=$ART" >> "$GITHUB_ENV"
+          # no zip; artifacts uploaded directly from package/
 
       # ---------- macOS ----------
       - name: Install deps (macOS)
@@ -188,10 +185,7 @@ jobs:
             '{ref:$ref, tag:$tag, os:$os, date:$date, notes:"Shared build on macOS (static linking limited)."}' \
             > package/BUILD-INFO.json
 
-          ART="ffmpeg-${FFMPEG_TAG:-$FFMPEG_REF}-${RUNNER_OS}-x86_64.zip"
-          # Zip with flat structure
-          (cd package && zip -r -q "../$ART" .)
-          echo "ARTIFACT=$ART" >> "$GITHUB_ENV"
+          # no zip; artifacts uploaded directly from package/
 
       # ---------- Windows (MSYS2) ----------
       - name: Setup MSYS2
@@ -243,34 +237,34 @@ jobs:
           printf '{"ref":"%s","tag":"%s","os":"%s","date":"%s","notes":"Static build for Windows (MSYS2)"}' \
             "$FFMPEG_REF" "${FFMPEG_TAG:-}" "$RUNNER_OS" "$DATE_STAMP" > package/BUILD-INFO.json
 
-          ART="ffmpeg-${FFMPEG_TAG:-$FFMPEG_REF}-${RUNNER_OS}-x86_64.zip"
-          # Zip with flat structure
-          cd package && zip -r -q "../$ART" . && cd ..
-          echo "ARTIFACT=$ART" >> "$GITHUB_ENV"
+          # no zip; artifacts uploaded directly from package/
 
       # Upload artifact (Linux)
       - name: Upload artifact (Linux)
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-Linux-x86_64.zip
-          path: FFmpeg/ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-Linux-x86_64.zip
+          name: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-Linux-x86_64
+          path: FFmpeg/package/**
+          if-no-files-found: error
 
       # Upload artifact (macOS)
       - name: Upload artifact (macOS)
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-macOS-x86_64.zip
-          path: FFmpeg/ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-macOS-x86_64.zip
+          name: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-macOS-x86_64
+          path: FFmpeg/package/**
+          if-no-files-found: error
 
       # Upload artifact (Windows)
       - name: Upload artifact (Windows)
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-Windows-x86_64.zip
-          path: FFmpeg/ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-Windows-x86_64.zip
+          name: ffmpeg-${{ env.FFMPEG_TAG != '' && env.FFMPEG_TAG || env.FFMPEG_REF }}-Windows-x86_64
+          path: FFmpeg/package/**
+          if-no-files-found: error
 
   release:
     name: Publish Release
@@ -300,6 +294,13 @@ jobs:
             Date: ${{ needs.resolve_ref.outputs.date }}
 
           files: |
-            artifacts/**/ffmpeg-*.zip
+            artifacts/**/ffmpeg
+            artifacts/**/ffmpeg.exe
+            artifacts/**/ffprobe
+            artifacts/**/ffprobe.exe
+            artifacts/**/BUILD-INFO.json
+            artifacts/**/FILES.txt
+            artifacts/**/DEPS-*.txt
+            artifacts/**/LICENSES/**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
