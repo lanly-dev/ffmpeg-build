@@ -74,6 +74,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+    outputs:
+      ffmpeg_commit: ${{ steps.get_commit.outputs.commit }}
 
     env:
       FFMPEG_REF: ${{ needs.resolve_ref.outputs.ref }}
@@ -106,6 +108,8 @@ jobs:
           git clone https://github.com/FFmpeg/FFmpeg.git
           cd FFmpeg
           git checkout "$FFMPEG_REF"
+          # Capture commit SHA
+          git rev-parse HEAD > ../ffmpeg-commit.txt
           # Build fully static using musl
           export CC=musl-gcc
           ./configure \
@@ -121,6 +125,14 @@ jobs:
           mkdir -p package
           # Copy binaries only
           cp -v install/bin/ffmpeg install/bin/ffprobe package/
+
+      - name: Get FFmpeg commit SHA
+        if: runner.os == 'Linux'
+        id: get_commit
+        shell: bash
+        run: |
+          COMMIT=$(cat ffmpeg-commit.txt)
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
 
       # ---------- macOS ----------
       - name: Install deps (macOS)
@@ -268,15 +280,21 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ needs.resolve_ref.outputs.tag != '' && needs.resolve_ref.outputs.tag || needs.resolve_ref.outputs.ref }}-${{ needs.resolve_ref.outputs.date }}${{ github.event_name == 'push' && format('-%s', github.run_number) || '' }}
+          tag_name: build-${{ needs.resolve_ref.outputs.tag != '' && needs.resolve_ref.outputs.tag || needs.resolve_ref.outputs.ref }}-${{ needs.resolve_ref.outputs.date }}${{ github.event_name == 'push' && format('--%s', github.run_number) || '' }}
           name: FFmpeg ${{ needs.resolve_ref.outputs.tag != '' && needs.resolve_ref.outputs.tag || needs.resolve_ref.outputs.ref }} Build (${{ needs.resolve_ref.outputs.date }})
           body: |
             Automated monthly build of FFmpeg.
 
-            **Upstream source:**
+            **Build Information:**
+            - Build number: `${{ github.run_number }}`
+            - Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            - This repo commit: [`${{ github.sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+
+            **Upstream FFmpeg source:**
             - Repository: https://github.com/FFmpeg/FFmpeg
-            - Ref: ${{ needs.resolve_ref.outputs.ref }}
-            - Tag: ${{ needs.resolve_ref.outputs.tag }}
+            - Ref: `${{ needs.resolve_ref.outputs.ref }}`
+            - Tag: `${{ needs.resolve_ref.outputs.tag }}`
+            - Commit: [`${{ needs.build.outputs.ffmpeg_commit }}`](https://github.com/FFmpeg/FFmpeg/commit/${{ needs.build.outputs.ffmpeg_commit }})
             - Build date: ${{ needs.resolve_ref.outputs.date }}
 
             **Licensing:**
