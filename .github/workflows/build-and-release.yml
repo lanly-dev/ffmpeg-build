@@ -118,29 +118,9 @@ jobs:
           make -j"$(nproc)"
           make install
 
-          mkdir -p package package/LICENSES
-          # Flatten: place binaries at package root
+          mkdir -p package
+          # Copy binaries only
           cp -v install/bin/ffmpeg install/bin/ffprobe package/
-          # Diagnostics: sizes and deps
-          (cd package && ls -lah > FILES.txt)
-          (cd package && file ./ffmpeg ./ffprobe > FILE-TYPE.txt)
-          (cd package && ldd ./ffmpeg > DEPS-ffmpeg.txt 2>&1 || true)
-          (cd package && ldd ./ffprobe > DEPS-ffprobe.txt 2>&1 || true)
-          # licenses
-          cp -v COPYING.LGPLv2.1 LICENSE.md package/LICENSES/ 2>/dev/null || true
-          cp -v COPYING.GPLv2 package/LICENSES/ 2>/dev/null || true
-          cp -v LICENSE.md package/LICENSES/ 2>/dev/null || true
-
-          jq -n \
-            --arg ref "$FFMPEG_REF" \
-            --arg tag "${FFMPEG_TAG:-}" \
-            --arg os "$RUNNER_OS" \
-            --arg arch "$(uname -m)" \
-            --arg date "$DATE_STAMP" \
-            '{ref:$ref, tag:$tag, os:$os, arch:$arch, date:$date, notes:"Built with built-in codecs only (no external libs)."}' \
-            > package/BUILD-INFO.json
-
-          # no zip; artifacts uploaded directly from package/
 
       # ---------- macOS ----------
       - name: Install deps (macOS)
@@ -166,28 +146,9 @@ jobs:
           make -j"$(sysctl -n hw.logicalcpu)"
           make install
 
-          mkdir -p package package/LICENSES
-          # Flatten: place binaries at package root
+          mkdir -p package
+          # Copy binaries only
           cp -v install/bin/ffmpeg install/bin/ffprobe package/
-          # Diagnostics: sizes and deps
-          (cd package && ls -lah > FILES.txt)
-          (cd package && otool -L ./ffmpeg > DEPS-ffmpeg.txt 2>&1 || true)
-          (cd package && otool -L ./ffprobe > DEPS-ffprobe.txt 2>&1 || true)
-          # licenses
-          cp -v COPYING.LGPLv2.1 LICENSE.md package/LICENSES/ 2>/dev/null || true
-          cp -v COPYING.GPLv2 package/LICENSES/ 2>/dev/null || true
-          cp -v LICENSE.md package/LICENSES/ 2>/dev/null || true
-
-          jq -n \
-            --arg ref "$FFMPEG_REF" \
-            --arg tag "${FFMPEG_TAG:-}" \
-            --arg os "$RUNNER_OS" \
-            --arg arch "$(uname -m)" \
-            --arg date "$DATE_STAMP" \
-            '{ref:$ref, tag:$tag, os:$os, arch:$arch, date:$date, notes:"Shared build on macOS (static linking limited)."}' \
-            > package/BUILD-INFO.json
-
-          # no zip; artifacts uploaded directly from package/
 
       # ---------- Windows (MSYS2) ----------
       - name: Setup MSYS2
@@ -224,25 +185,9 @@ jobs:
           make -j"$(nproc)"
           make install
 
-          mkdir -p package package/LICENSES
-          # Flatten: place binaries at package root
+          mkdir -p package
+          # Copy binaries only
           cp -v install/bin/ffmpeg.exe install/bin/ffprobe.exe package/
-          # Diagnostics: sizes and deps (PE imports)
-          (cd package && ls -lah > FILES.txt)
-          (cd package && objdump -p ./ffmpeg.exe | grep -i 'DLL Name' > DEPS-ffmpeg.txt 2>&1 || true)
-          (cd package && objdump -p ./ffprobe.exe | grep -i 'DLL Name' > DEPS-ffprobe.txt 2>&1 || true)
-          # licenses
-          cp -v COPYING.LGPLv2.1 LICENSE.md package/LICENSES/ || true
-          cp -v COPYING.GPLv2 package/LICENSES/ || true
-          cp -v LICENSE.md package/LICENSES/ || true
-
-          printf '{"ref":"%s","tag":"%s","os":"%s","date":"%s","notes":"Static build for Windows (MSYS2)"}' \
-            "$FFMPEG_REF" "${FFMPEG_TAG:-}" "$RUNNER_OS" "$DATE_STAMP" > package/BUILD-INFO.json
-          # Add arch to BUILD-INFO.json for Windows
-          ARCH=$(uname -m)
-          jq --arg arch "$ARCH" '.arch = $arch' package/BUILD-INFO.json > package/BUILD-INFO.tmp && mv package/BUILD-INFO.tmp package/BUILD-INFO.json
-
-          # no zip; artifacts uploaded directly from package/
 
       # Upload artifact (Linux)
       - name: Upload artifact (Linux)
@@ -253,12 +198,6 @@ jobs:
           path: |
             FFmpeg/package/ffmpeg
             FFmpeg/package/ffprobe
-            FFmpeg/package/BUILD-INFO.json
-            FFmpeg/package/FILES.txt
-            FFmpeg/package/FILE-TYPE.txt
-            FFmpeg/package/DEPS-ffmpeg.txt
-            FFmpeg/package/DEPS-ffprobe.txt
-            FFmpeg/package/LICENSES/
           if-no-files-found: error
 
       # Upload artifact (macOS)
@@ -270,11 +209,6 @@ jobs:
           path: |
             FFmpeg/package/ffmpeg
             FFmpeg/package/ffprobe
-            FFmpeg/package/BUILD-INFO.json
-            FFmpeg/package/FILES.txt
-            FFmpeg/package/DEPS-ffmpeg.txt
-            FFmpeg/package/DEPS-ffprobe.txt
-            FFmpeg/package/LICENSES/
           if-no-files-found: error
 
       # Upload artifact (Windows)
@@ -286,11 +220,6 @@ jobs:
           path: |
             FFmpeg/package/ffmpeg.exe
             FFmpeg/package/ffprobe.exe
-            FFmpeg/package/BUILD-INFO.json
-            FFmpeg/package/FILES.txt
-            FFmpeg/package/DEPS-ffmpeg.txt
-            FFmpeg/package/DEPS-ffprobe.txt
-            FFmpeg/package/LICENSES/
           if-no-files-found: error
 
   release:
@@ -323,8 +252,7 @@ jobs:
               *) os="" ;;
             esac
             [ -n "$os" ] || continue
-            # Artifacts are now flat; files are directly in $d
-            # binaries
+            # Copy binaries only
             if [ -f "$d/ffmpeg.exe" ]; then
               cp -f "$d/ffmpeg.exe" "release/ffmpeg-$os.exe"
             elif [ -f "$d/ffmpeg" ]; then
@@ -334,20 +262,6 @@ jobs:
               cp -f "$d/ffprobe.exe" "release/ffprobe-$os.exe"
             elif [ -f "$d/ffprobe" ]; then
               cp -f "$d/ffprobe" "release/ffprobe-$os"
-            fi
-            # metadata
-            [ -f "$d/BUILD-INFO.json" ] && cp -f "$d/BUILD-INFO.json" "release/BUILD-INFO-$os.json" || true
-            [ -f "$d/FILES.txt" ] && cp -f "$d/FILES.txt" "release/FILES-$os.txt" || true
-            [ -f "$d/DEPS-ffmpeg.txt" ] && cp -f "$d/DEPS-ffmpeg.txt" "release/DEPS-ffmpeg-$os.txt" || true
-            [ -f "$d/DEPS-ffprobe.txt" ] && cp -f "$d/DEPS-ffprobe.txt" "release/DEPS-ffprobe-$os.txt" || true
-            [ -f "$d/FILE-TYPE.txt" ] && cp -f "$d/FILE-TYPE.txt" "release/FILE-TYPE-$os.txt" || true
-            # licenses (prefix filenames with OS to avoid release asset name collisions)
-            if [ -d "$d/LICENSES" ]; then
-              for f in "$d"/LICENSES/*; do
-                [ -f "$f" ] || continue
-                base=$(basename "$f")
-                cp -f "$f" "release/${os}-LICENSE-${base}"
-              done
             fi
           done
 
