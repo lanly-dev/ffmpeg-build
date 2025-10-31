@@ -273,9 +273,23 @@ jobs:
           body: |
             Automated monthly build of FFmpeg.
 
-            Upstream ref: ${{ needs.resolve_ref.outputs.ref }}
-            Upstream tag: ${{ needs.resolve_ref.outputs.tag }}
-            Date: ${{ needs.resolve_ref.outputs.date }}
+            **Upstream source:**
+            - Repository: https://github.com/FFmpeg/FFmpeg
+            - Ref: ${{ needs.resolve_ref.outputs.ref }}
+            - Tag: ${{ needs.resolve_ref.outputs.tag }}
+            - Build date: ${{ needs.resolve_ref.outputs.date }}
+
+            **Licensing:**
+            These are prebuilt binaries of FFmpeg, licensed under LGPL v2.1+ (built with built-in codecs only, no GPL or nonfree components).
+            
+            For full FFmpeg licensing information, see: https://ffmpeg.org/legal.html
+            
+            FFmpeg is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation; either version 2.1 of the License, or (at your option) any later version.
+
+            **Build configuration:**
+            - Linux: fully static (musl-based, no external dependencies)
+            - macOS: static FFmpeg libraries (system frameworks remain dynamic)
+            - Windows: static build with no runtime DLLs (MSYS2 toolchain)
 
           files: |
             release/*
