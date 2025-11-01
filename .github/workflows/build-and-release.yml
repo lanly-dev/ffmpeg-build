@@ -286,8 +286,7 @@ jobs:
             Automated monthly build of FFmpeg.
 
             **Build Information:**
-            - Build number: `${{ github.run_number }}`
-            - Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            - Build number: [#${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
             - This repo commit: [`${{ github.sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
 
             **Upstream FFmpeg source:**
