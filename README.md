@@ -10,12 +10,23 @@ This repository automates building FFmpeg from upstream once a month for Windows
 > **Need more build options?** Check out [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) for comprehensive FFmpeg builds with GPL codecs, various linking options, and more configurations.
 
 ## What gets built
-These builds use FFmpeg's built-in codecs only (LGPL v2.1+), with no external GPL libraries like libx264/libx265. This keeps builds portable, licensing straightforward, and ensures no external runtime dependencies.
+These builds include **GPL codecs and GPU acceleration support**, making them feature-rich and redistributable under GPL v3.
 
-Build configuration:
-- **Linux**: Fully static (musl-based, no glibc dependency)
-- **Windows**: Static build with no runtime DLLs (MSYS2 toolchain)
-- **macOS**: Static FFmpeg libraries (system frameworks remain dynamic)
+**Included features:**
+- **Video Codecs:** x264 (H.264), x265 (H.265/HEVC), VP8/VP9 (WebM)
+- **Audio Codecs:** Opus, Vorbis
+- **Image Formats:** SVG rendering (librsvg), WebP, GIF (built-in)
+- **AI/ML:** Whisper (automatic speech recognition - requires model files)
+- **GPU acceleration:**
+- **NVIDIA**: NVENC/NVDEC (hardware encoding/decoding)
+- **AMD**: AMF (hardware encoding on Windows)
+- **Intel/AMD**: VAAPI (hardware acceleration on Linux)
+- **Apple**: VideoToolbox (hardware acceleration on macOS)
+
+**Build configuration:**
+- **Linux**: Static build with GPL codecs, NVIDIA CUDA/NVENC, and VAAPI
+- **Windows**: Static build with GPL codecs, NVENC, and AMF (no runtime DLLs)
+- **macOS**: Static build with GPL codecs and VideoToolbox
 
 ## How it works
 1. Resolve latest upstream FFmpeg tag (like `n7.1`) via GitHub API
@@ -35,12 +46,8 @@ Each release includes:
 All binaries are standalone with no external dependencies.
 
 ## Licensing
-These builds are licensed under **LGPL v2.1+** (built-in codecs only, no GPL or nonfree components). You can use these binaries in commercial or closed-source projects as long as you:
-1. Provide attribution to FFmpeg
-2. Link to the LGPL license
-3. Allow users to replace the FFmpeg binaries with their own versions
 
-See https://ffmpeg.org/legal.html for full details.
+See https://ffmpeg.org/legal.html for full FFmpeg licensing details.
 
 ## Customization
-To enable additional codecs or features, edit `.github/workflows/build-and-release.yml` and adjust the `./configure` flags per OS. Note that adding GPL libraries (like libx264/libx265) will change the license to GPL v2+.
+To modify codecs or features, edit `.github/workflows/build-and-release.yml` and adjust the `./configure` flags per OS.

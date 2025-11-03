@@ -98,7 +98,20 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential yasm nasm git pkg-config curl zip jq musl-tools file
+          sudo apt-get install -y build-essential yasm nasm git pkg-config curl zip jq musl-tools file \
+            libx264-dev libx265-dev libvpx-dev libopus-dev libvorbis-dev \
+            libva-dev nvidia-cuda-toolkit librsvg2-dev libwebp-dev cmake
+
+      - name: Build whisper.cpp (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git clone https://github.com/ggerganov/whisper.cpp.git
+          cd whisper.cpp
+          cmake -B build -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=OFF
+          cmake --build build -j"$(nproc)"
+          sudo cmake --install build
 
       - name: Build FFmpeg (Linux)
         if: runner.os == 'Linux'
@@ -110,15 +123,29 @@ jobs:
           git checkout "$FFMPEG_REF"
           # Capture commit SHA
           git rev-parse HEAD > ../ffmpeg-commit.txt
-          # Build fully static using musl
-          export CC=musl-gcc
+          # Build with GPL codecs and GPU acceleration (redistributable)
           ./configure \
             --prefix="$PWD/install" \
             --disable-debug \
             --disable-doc \
+            --enable-gpl \
+            --enable-version3 \
             --enable-static \
             --disable-shared \
-            --extra-ldflags="-static"
+            --enable-libx264 \
+            --enable-libx265 \
+            --enable-libvpx \
+            --enable-libopus \
+            --enable-libvorbis \
+            --enable-librsvg \
+            --enable-libwebp \
+            --enable-libwhisper \
+            --enable-vaapi \
+            --enable-cuda-nvcc \
+            --enable-nvenc \
+            --enable-nvdec \
+            --extra-cflags="-I/usr/local/cuda/include -I/usr/local/include" \
+            --extra-ldflags="-L/usr/local/cuda/lib64 -L/usr/local/lib"
           make -j"$(nproc)"
           make install
 
@@ -139,7 +166,18 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew update
-          brew install yasm nasm jq
+          brew install yasm nasm jq x264 x265 libvpx opus libvorbis librsvg webp cmake
+
+      - name: Build whisper.cpp (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git clone https://github.com/ggerganov/whisper.cpp.git
+          cd whisper.cpp
+          cmake -B build -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=OFF
+          cmake --build build -j"$(sysctl -n hw.logicalcpu)"
+          sudo cmake --install build
 
       - name: Build FFmpeg (macOS)
         if: runner.os == 'macOS'
@@ -153,8 +191,19 @@ jobs:
             --prefix="$PWD/install" \
             --disable-debug \
             --disable-doc \
+            --enable-gpl \
+            --enable-version3 \
             --enable-static \
-            --disable-shared
+            --disable-shared \
+            --enable-libx264 \
+            --enable-libx265 \
+            --enable-libvpx \
+            --enable-libopus \
+            --enable-libvorbis \
+            --enable-librsvg \
+            --enable-libwebp \
+            --enable-libwhisper \
+            --enable-videotoolbox
           make -j"$(sysctl -n hw.logicalcpu)"
           make install
 
@@ -175,6 +224,25 @@ jobs:
             nasm
             yasm
             mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-x264
+            mingw-w64-x86_64-x265
+            mingw-w64-x86_64-libvpx
+            mingw-w64-x86_64-opus
+            mingw-w64-x86_64-libvorbis
+            mingw-w64-x86_64-librsvg
+            mingw-w64-x86_64-libwebp
+            mingw-w64-x86_64-cmake
+
+      - name: Build whisper.cpp (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          set -euxo pipefail
+          git clone https://github.com/ggerganov/whisper.cpp.git
+          cd whisper.cpp
+          cmake -B build -G "MSYS Makefiles" -DCMAKE_INSTALL_PREFIX=/mingw64 -DBUILD_SHARED_LIBS=OFF
+          cmake --build build -j"$(nproc)"
+          cmake --install build
 
       - name: Build FFmpeg (Windows)
         if: runner.os == 'Windows'
@@ -190,8 +258,21 @@ jobs:
             --arch=x86_64 \
             --disable-debug \
             --disable-doc \
+            --enable-gpl \
+            --enable-version3 \
             --enable-static \
             --disable-shared \
+            --enable-libx264 \
+            --enable-libx265 \
+            --enable-libvpx \
+            --enable-libopus \
+            --enable-libvorbis \
+            --enable-librsvg \
+            --enable-libwebp \
+            --enable-libwhisper \
+            --enable-nvenc \
+            --enable-nvdec \
+            --enable-amf \
             --pkg-config-flags="--static" \
             --extra-ldflags="-static -static-libgcc -static-libstdc++"
           make -j"$(nproc)"
@@ -296,17 +377,6 @@ jobs:
             - Commit: [`${{ needs.build.outputs.ffmpeg_commit }}`](https://github.com/FFmpeg/FFmpeg/commit/${{ needs.build.outputs.ffmpeg_commit }})
             - Build date: ${{ needs.resolve_ref.outputs.date }}
 
-            **Licensing:**
-            These are prebuilt binaries of FFmpeg, licensed under LGPL v2.1+ (built with built-in codecs only, no GPL or nonfree components).
-            
-            For full FFmpeg licensing information, see: https://ffmpeg.org/legal.html
-            
-            FFmpeg is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation; either version 2.1 of the License, or (at your option) any later version.
-
-            **Build configuration:**
-            - Linux: fully static (musl-based, no external dependencies)
-            - macOS: static FFmpeg libraries (system frameworks remain dynamic)
-            - Windows: static build with no runtime DLLs (MSYS2 toolchain)
 
           files: |
             release/*
