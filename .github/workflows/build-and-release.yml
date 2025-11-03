@@ -124,6 +124,7 @@ jobs:
           # Capture commit SHA
           git rev-parse HEAD > ../ffmpeg-commit.txt
           # Build with GPL codecs and GPU acceleration (redistributable)
+          # Note: Whisper support is auto-detected if whisper.cpp is installed
           ./configure \
             --prefix="$PWD/install" \
             --disable-debug \
@@ -139,7 +140,6 @@ jobs:
             --enable-libvorbis \
             --enable-librsvg \
             --enable-libwebp \
-            --enable-libwhisper \
             --enable-vaapi \
             --enable-cuda-nvcc \
             --enable-nvenc \
@@ -187,6 +187,7 @@ jobs:
           git clone https://github.com/FFmpeg/FFmpeg.git
           cd FFmpeg
           git checkout "$FFMPEG_REF"
+          # Note: Whisper support is auto-detected if whisper.cpp is installed
           ./configure \
             --prefix="$PWD/install" \
             --disable-debug \
@@ -202,7 +203,6 @@ jobs:
             --enable-libvorbis \
             --enable-librsvg \
             --enable-libwebp \
-            --enable-libwhisper \
             --enable-videotoolbox
           make -j"$(sysctl -n hw.logicalcpu)"
           make install
@@ -269,12 +269,12 @@ jobs:
             --enable-libvorbis \
             --enable-librsvg \
             --enable-libwebp \
-            --enable-libwhisper \
             --enable-nvenc \
             --enable-nvdec \
             --enable-amf \
             --pkg-config-flags="--static" \
             --extra-ldflags="-static -static-libgcc -static-libstdc++"
+          # Note: Whisper support is auto-detected if whisper.cpp is installed
           make -j"$(nproc)"
           make install
 
