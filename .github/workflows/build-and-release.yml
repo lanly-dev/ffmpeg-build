@@ -100,7 +100,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential yasm nasm git pkg-config curl zip jq musl-tools file \
             libx264-dev libx265-dev libvpx-dev libopus-dev libvorbis-dev \
-            libva-dev nvidia-cuda-toolkit librsvg2-dev libwebp-dev cmake
+            libva-dev cmake
+
+      - name: Build ffnvcodec headers (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git clone https://github.com/FFmpeg/nv-codec-headers.git
+          cd nv-codec-headers
+          sudo make install PREFIX=/usr/local
 
       - name: Build whisper.cpp (Linux)
         if: runner.os == 'Linux'
@@ -125,7 +134,7 @@ jobs:
           git rev-parse HEAD > ../ffmpeg-commit.txt
           # Build with GPL codecs and GPU acceleration (redistributable)
           # Note: Whisper support is auto-detected if whisper.cpp is installed
-          # Note: librsvg/libwebp disabled for static musl build (complex dependencies)
+          # Note: ffnvcodec headers enable NVENC/NVDEC without nonfree requirement
           ./configure \
             --prefix="$PWD/install" \
             --disable-debug \
@@ -140,11 +149,11 @@ jobs:
             --enable-libopus \
             --enable-libvorbis \
             --enable-vaapi \
-            --enable-cuda-nvcc \
+            --enable-ffnvcodec \
             --enable-nvenc \
             --enable-nvdec \
-            --extra-cflags="-I/usr/local/cuda/include -I/usr/local/include" \
-            --extra-ldflags="-L/usr/local/cuda/lib64 -L/usr/local/lib"
+            --extra-cflags="-I/usr/local/include" \
+            --extra-ldflags="-L/usr/local/lib"
           make -j"$(nproc)"
           make install
 
@@ -165,7 +174,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew update
-          brew install yasm nasm jq x264 x265 libvpx opus libvorbis librsvg webp cmake
+          brew install yasm nasm jq x264 x265 libvpx opus libvorbis cmake
 
       - name: Build whisper.cpp (macOS)
         if: runner.os == 'macOS'
@@ -187,6 +196,7 @@ jobs:
           cd FFmpeg
           git checkout "$FFMPEG_REF"
           # Note: Whisper support is auto-detected if whisper.cpp is installed
+          # Note: SVG/WebP disabled (pkg-config detection issues on macOS)
           ./configure \
             --prefix="$PWD/install" \
             --disable-debug \
@@ -200,8 +210,6 @@ jobs:
             --enable-libvpx \
             --enable-libopus \
             --enable-libvorbis \
-            --enable-librsvg \
-            --enable-libwebp \
             --enable-videotoolbox
           make -j"$(sysctl -n hw.logicalcpu)"
           make install
@@ -228,8 +236,6 @@ jobs:
             mingw-w64-x86_64-libvpx
             mingw-w64-x86_64-opus
             mingw-w64-x86_64-libvorbis
-            mingw-w64-x86_64-librsvg
-            mingw-w64-x86_64-libwebp
             mingw-w64-x86_64-cmake
 
       - name: Build whisper.cpp (Windows)
@@ -266,14 +272,13 @@ jobs:
             --enable-libvpx \
             --enable-libopus \
             --enable-libvorbis \
-            --enable-librsvg \
-            --enable-libwebp \
             --enable-nvenc \
             --enable-nvdec \
             --enable-amf \
             --pkg-config-flags="--static" \
             --extra-ldflags="-static -static-libgcc -static-libstdc++"
           # Note: Whisper support is auto-detected if whisper.cpp is installed
+          # Note: SVG/WebP disabled for consistency across platforms
           make -j"$(nproc)"
           make install
 
@@ -377,30 +382,23 @@ jobs:
             - Build date: ${{ needs.resolve_ref.outputs.date }}
 
             **Licensing:**
-            These are prebuilt binaries of FFmpeg, licensed under **GPL v3** (includes GPL codecs and GPU acceleration support).
-            
             For full FFmpeg licensing information, see: https://ffmpeg.org/legal.html
-            
-            FFmpeg is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 3 of the License, or (at your option) any later version.
-            
-            ⚠️ **Note:** If you incorporate these binaries into your software, your software must also be licensed under GPL and source code must be made available.
 
             **Features included:**
             - **Video Codecs:** x264 (H.264), x265 (H.265/HEVC), VP8/VP9
             - **Audio Codecs:** Opus, Vorbis
-            - **Image Formats:** 
-              - SVG (macOS/Windows only), WebP (macOS/Windows only), GIF (all platforms)
+            - **Image Formats:** GIF (built-in support on all platforms)
             - **AI/ML:** Whisper (automatic speech recognition - if detected during build)
             - **GPU Acceleration:**
-              - NVIDIA: NVENC/NVDEC (hardware encoding/decoding)
-              - AMD: AMF (hardware encoding) - Windows
-              - Intel/AMD: VAAPI (hardware acceleration) - Linux
-              - Apple: VideoToolbox (hardware acceleration) - macOS
+              - NVIDIA: NVENC/NVDEC (all platforms - uses ffnvcodec headers, GPL-compatible)
+              - AMD: AMF (Windows)
+              - Intel/AMD: VAAPI (Linux)
+              - Apple: VideoToolbox (macOS)
 
             **Build configuration:**
-            - Linux: Static build with GPL codecs and NVIDIA/VAAPI support (SVG/WebP not included due to static linking complexity)
-            - macOS: Static build with GPL codecs, SVG, WebP, and VideoToolbox support
-            - Windows: Static build with GPL codecs, SVG, WebP, NVENC, and AMF support (no runtime DLLs)
+            - Linux: Static build with GPL codecs, VAAPI, and NVENC/NVDEC support
+            - macOS: Static build with GPL codecs and VideoToolbox support
+            - Windows: Static build with GPL codecs, NVENC, NVDEC, and AMF support (no runtime DLLs)
 
           files: |
             release/*

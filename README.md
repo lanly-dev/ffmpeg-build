@@ -15,18 +15,19 @@ These builds include **GPL codecs and GPU acceleration support**, making them fe
 **Included features:**
 - **Video Codecs:** x264 (H.264), x265 (H.265/HEVC), VP8/VP9 (WebM)
 - **Audio Codecs:** Opus, Vorbis
-- **Image Formats:** SVG rendering (librsvg), WebP, GIF (built-in)
-- **AI/ML:** Whisper (automatic speech recognition - requires model files)
+- **Image Formats:** GIF (built-in support)
+- **AI/ML:** Whisper (automatic speech recognition - if detected, requires model files)
 - **GPU acceleration:**
-- **NVIDIA**: NVENC/NVDEC (hardware encoding/decoding)
-- **AMD**: AMF (hardware encoding on Windows)
-- **Intel/AMD**: VAAPI (hardware acceleration on Linux)
-- **Apple**: VideoToolbox (hardware acceleration on macOS)
+  - **NVIDIA**: NVENC/NVDEC (all platforms - uses ffnvcodec headers, GPL-compatible)
+  - **AMD**: AMF (Windows)
+  - **Intel/AMD**: VAAPI (Linux)
+  - **Apple**: VideoToolbox (macOS)
 
 **Build configuration:**
-- **Linux**: Static build with GPL codecs, NVIDIA CUDA/NVENC, and VAAPI
-- **Windows**: Static build with GPL codecs, NVENC, and AMF (no runtime DLLs)
-- **macOS**: Static build with GPL codecs and VideoToolbox
+- **Linux**: Static build with GPL codecs, VAAPI, and NVENC/NVDEC (Intel/AMD/NVIDIA GPU acceleration)
+- **macOS**: Static build with GPL codecs and VideoToolbox (Apple GPU acceleration)
+- **Windows**: Static build with GPL codecs, NVENC, NVDEC, and AMF (NVIDIA/AMD GPU acceleration) - no runtime DLLs
+
 
 ## How it works
 1. Resolve latest upstream FFmpeg tag (like `n7.1`) via GitHub API
