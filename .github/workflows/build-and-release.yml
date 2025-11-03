@@ -238,6 +238,15 @@ jobs:
             mingw-w64-x86_64-libvorbis
             mingw-w64-x86_64-cmake
 
+      - name: Build ffnvcodec headers (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          set -euxo pipefail
+          git clone https://github.com/FFmpeg/nv-codec-headers.git
+          cd nv-codec-headers
+          make install PREFIX=/mingw64
+
       - name: Build whisper.cpp (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
