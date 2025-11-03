@@ -125,6 +125,7 @@ jobs:
           git rev-parse HEAD > ../ffmpeg-commit.txt
           # Build with GPL codecs and GPU acceleration (redistributable)
           # Note: Whisper support is auto-detected if whisper.cpp is installed
+          # Note: librsvg/libwebp disabled for static musl build (complex dependencies)
           ./configure \
             --prefix="$PWD/install" \
             --disable-debug \
@@ -138,8 +139,6 @@ jobs:
             --enable-libvpx \
             --enable-libopus \
             --enable-libvorbis \
-            --enable-librsvg \
-            --enable-libwebp \
             --enable-vaapi \
             --enable-cuda-nvcc \
             --enable-nvenc \
@@ -377,6 +376,31 @@ jobs:
             - Commit: [`${{ needs.build.outputs.ffmpeg_commit }}`](https://github.com/FFmpeg/FFmpeg/commit/${{ needs.build.outputs.ffmpeg_commit }})
             - Build date: ${{ needs.resolve_ref.outputs.date }}
 
+            **Licensing:**
+            These are prebuilt binaries of FFmpeg, licensed under **GPL v3** (includes GPL codecs and GPU acceleration support).
+            
+            For full FFmpeg licensing information, see: https://ffmpeg.org/legal.html
+            
+            FFmpeg is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 3 of the License, or (at your option) any later version.
+            
+            ⚠️ **Note:** If you incorporate these binaries into your software, your software must also be licensed under GPL and source code must be made available.
+
+            **Features included:**
+            - **Video Codecs:** x264 (H.264), x265 (H.265/HEVC), VP8/VP9
+            - **Audio Codecs:** Opus, Vorbis
+            - **Image Formats:** 
+              - SVG (macOS/Windows only), WebP (macOS/Windows only), GIF (all platforms)
+            - **AI/ML:** Whisper (automatic speech recognition - if detected during build)
+            - **GPU Acceleration:**
+              - NVIDIA: NVENC/NVDEC (hardware encoding/decoding)
+              - AMD: AMF (hardware encoding) - Windows
+              - Intel/AMD: VAAPI (hardware acceleration) - Linux
+              - Apple: VideoToolbox (hardware acceleration) - macOS
+
+            **Build configuration:**
+            - Linux: Static build with GPL codecs and NVIDIA/VAAPI support (SVG/WebP not included due to static linking complexity)
+            - macOS: Static build with GPL codecs, SVG, WebP, and VideoToolbox support
+            - Windows: Static build with GPL codecs, SVG, WebP, NVENC, and AMF support (no runtime DLLs)
 
           files: |
             release/*
