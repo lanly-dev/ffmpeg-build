@@ -381,10 +381,35 @@ jobs:
             fi
           done
 
+      - name: Determine release version
+        id: release_version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BASE_TAG="build-${{ needs.resolve_ref.outputs.tag != '' && needs.resolve_ref.outputs.tag || needs.resolve_ref.outputs.ref }}-${{ needs.resolve_ref.outputs.date }}"
+
+          # Check if base tag exists
+          if gh release view "$BASE_TAG" --repo ${{ github.repository }} >/dev/null 2>&1; then
+            # Tag exists, find next available number
+            i=2
+            while gh release view "${BASE_TAG}.${i}" --repo ${{ github.repository }} >/dev/null 2>&1; do
+              i=$((i + 1))
+            done
+            FINAL_TAG="${BASE_TAG}.${i}"
+            echo "Tag $BASE_TAG exists, using $FINAL_TAG"
+          else
+            FINAL_TAG="$BASE_TAG"
+            echo "Tag $BASE_TAG is available"
+          fi
+
+          echo "tag=$FINAL_TAG" >> "$GITHUB_OUTPUT"
+          echo "Final tag: $FINAL_TAG"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ needs.resolve_ref.outputs.tag != '' && needs.resolve_ref.outputs.tag || needs.resolve_ref.outputs.ref }}-${{ needs.resolve_ref.outputs.date }}${{ github.event_name == 'push' && format('--%s', github.run_number) || '' }}
+          tag_name: ${{ steps.release_version.outputs.tag }}
           name: FFmpeg ${{ needs.resolve_ref.outputs.tag != '' && needs.resolve_ref.outputs.tag || needs.resolve_ref.outputs.ref }} Build (${{ needs.resolve_ref.outputs.date }})
           body: |
             Automated monthly build of FFmpeg.
