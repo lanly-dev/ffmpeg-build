@@ -247,6 +247,16 @@ jobs:
           cd nv-codec-headers
           make install PREFIX=/mingw64
 
+      - name: Build AMF headers (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          set -euxo pipefail
+          git clone https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git
+          cd AMF
+          mkdir -p /mingw64/include/AMF
+          cp -r amf/public/include/* /mingw64/include/AMF/
+
       - name: Build whisper.cpp (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
