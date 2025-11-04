@@ -404,13 +404,21 @@ jobs:
           fi
 
           echo "tag=$FINAL_TAG" >> "$GITHUB_OUTPUT"
-          echo "Final tag: $FINAL_TAG"
+          
+          # Extract version suffix for display (empty if no suffix)
+          if [[ "$FINAL_TAG" =~ \.([0-9]+)$ ]]; then
+            VERSION_SUFFIX=" v${BASH_REMATCH[1]}"
+          else
+            VERSION_SUFFIX=""
+          fi
+          echo "suffix=$VERSION_SUFFIX" >> "$GITHUB_OUTPUT"
+          echo "Final tag: $FINAL_TAG (suffix: $VERSION_SUFFIX)"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_version.outputs.tag }}
-          name: FFmpeg ${{ needs.resolve_ref.outputs.tag != '' && needs.resolve_ref.outputs.tag || needs.resolve_ref.outputs.ref }} Build (${{ needs.resolve_ref.outputs.date }})
+          name: FFmpeg ${{ needs.resolve_ref.outputs.tag != '' && needs.resolve_ref.outputs.tag || needs.resolve_ref.outputs.ref }} Build (${{ needs.resolve_ref.outputs.date }})${{ steps.release_version.outputs.suffix }}
           body: |
             Automated monthly build of FFmpeg.
 
