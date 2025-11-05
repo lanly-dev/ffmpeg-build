@@ -174,7 +174,8 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew update
-          brew install yasm nasm jq x264 x265 libvpx opus libvorbis cmake
+          brew install yasm nasm x264 x265 libvpx opus libvorbis || true
+          # jq and cmake are already pre-installed on GitHub Actions runners
 
       - name: Build whisper.cpp (macOS)
         if: runner.os == 'macOS'
@@ -404,7 +405,7 @@ jobs:
           fi
 
           echo "tag=$FINAL_TAG" >> "$GITHUB_OUTPUT"
-          
+
           # Extract version suffix for display (empty if no suffix)
           if [[ "$FINAL_TAG" =~ \.([0-9]+)$ ]]; then
             VERSION_SUFFIX=" v${BASH_REMATCH[1]}"
