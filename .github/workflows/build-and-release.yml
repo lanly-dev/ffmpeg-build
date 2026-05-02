@@ -443,7 +443,7 @@ jobs:
             - **Image Formats:** GIF (built-in support on all platforms)
             - **AI/ML:** Whisper (automatic speech recognition - if detected during build)
             - **GPU Acceleration:**
-              - NVIDIA: NVENC/NVDEC (all platforms - uses ffnvcodec headers, GPL-compatible)
+              - NVIDIA: NVENC/NVDEC (Linux and Windows - uses ffnvcodec headers, GPL-compatible)
               - AMD: AMF (Windows)
               - Intel/AMD: VAAPI (Linux)
               - Apple: VideoToolbox (macOS)
