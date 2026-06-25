@@ -153,12 +153,12 @@ jobs:
             --enable-nvenc \
             --enable-nvdec \
             --extra-cflags="-I/usr/local/include" \
-            --extra-ldflags="-L/usr/local/lib"
+            --extra-ldflags="-L/usr/local/lib -static -static-libgcc -static-libstdc++"
           make -j"$(nproc)"
           make install
 
           mkdir -p package
-          # Copy binaries only
+          # Copy binaries only (statically linked)
           cp -v install/bin/ffmpeg install/bin/ffprobe package/
 
       - name: Get FFmpeg commit SHA
@@ -211,7 +211,8 @@ jobs:
             --enable-libvpx \
             --enable-libopus \
             --enable-libvorbis \
-            --enable-videotoolbox
+            --enable-videotoolbox \
+            --extra-ldflags="-static"
           make -j"$(sysctl -n hw.logicalcpu)"
           make install
 
@@ -449,8 +450,8 @@ jobs:
               - Apple: VideoToolbox (macOS)
 
             **Build configuration:**
-            - Linux: Static build with GPL codecs, VAAPI, and NVENC/NVDEC support
-            - macOS: Static build with GPL codecs and VideoToolbox support
+            - Linux: Static build with GPL codecs, VAAPI, and NVENC/NVDEC support (no runtime dependencies)
+            - macOS: Static build with GPL codecs and VideoToolbox support (no runtime dependencies)
             - Windows: Static build with GPL codecs, NVENC, NVDEC, and AMF support (no runtime DLLs)
 
           files: |
