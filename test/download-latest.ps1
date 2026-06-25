@@ -6,8 +6,7 @@ param(
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$testDir = Join-Path -Path $PSScriptRoot -ChildPath "downloaded"
-New-Item -ItemType Directory -Force -Path $testDir | Out-Null
+$testDir = $PSScriptRoot
 
 Write-Host "Fetching latest release from $Repo..."
 $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest"
