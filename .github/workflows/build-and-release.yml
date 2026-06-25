@@ -153,7 +153,7 @@ jobs:
             --enable-nvenc \
             --enable-nvdec \
             --extra-cflags="-I/usr/local/include" \
-            --extra-ldflags="-L/usr/local/lib -static -static-libgcc -static-libstdc++"
+            --extra-ldflags="-L/usr/local/lib"
           make -j"$(nproc)"
           make install
 
@@ -211,8 +211,7 @@ jobs:
             --enable-libvpx \
             --enable-libopus \
             --enable-libvorbis \
-            --enable-videotoolbox \
-            --extra-ldflags="-static"
+            --enable-videotoolbox
           make -j"$(sysctl -n hw.logicalcpu)"
           make install
 
