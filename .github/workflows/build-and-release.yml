@@ -296,14 +296,14 @@ jobs:
             --enable-nvdec \
             --enable-amf \
             --pkg-config-flags="--static" \
-            --extra-ldflags="-Wl,--allow-multiple-definition"
+            --extra-ldflags="-Wl,--allow-multiple-definition -static -static-libgcc -static-libstdc++"
           # Note: Whisper support is auto-detected if whisper.cpp is installed
           # Note: SVG/WebP disabled for consistency across platforms
           make -j"$(nproc)"
           make install
 
           mkdir -p package
-          # Copy binaries only
+          # Copy binaries only (statically linked)
           cp -v install/bin/ffmpeg.exe install/bin/ffprobe.exe package/
 
       # Upload artifact (Linux)
