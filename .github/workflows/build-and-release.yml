@@ -238,6 +238,10 @@ jobs:
             mingw-w64-x86_64-opus
             mingw-w64-x86_64-libvorbis
             mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-bzip2
+            mingw-w64-x86_64-libiconv
+            mingw-w64-x86_64-xz
 
       - name: Build ffnvcodec headers (Windows)
         if: runner.os == 'Windows'
