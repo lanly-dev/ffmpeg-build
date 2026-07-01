@@ -300,8 +300,9 @@ jobs:
             --enable-nvdec \
             --enable-amf \
             --pkg-config-flags="--static" \
-            --extra-ldexeflags="-static -static-libgcc -static-libstdc++" \
-            --extra-ldflags="-static -static-libgcc -static-libstdc++"
+            --extra-ldexeflags="-static" \
+            --extra-ldflags="-static" \
+            --extra-libs="-lpthread -lm"
           # Note: Whisper support is auto-detected if whisper.cpp is installed
           # Note: SVG/WebP disabled for consistency across platforms
           make -j"$(nproc)"
