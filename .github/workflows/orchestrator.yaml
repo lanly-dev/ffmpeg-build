@@ -10,7 +10,6 @@ on:
       ffmpeg_ref:
         description: 'FFmpeg ref (tag, branch, or commit SHA).'
         required: false
-        default: ''
 
 permissions:
   contents: write
@@ -51,21 +50,18 @@ jobs:
     uses: ./.github/workflows/linux.yaml
     with:
       ffmpeg_ref: ${{ needs.resolve_ref.outputs.ref }}
-      ffmpeg_tag: ${{ needs.resolve_ref.outputs.tag }}
 
   build-macos:
     needs: resolve_ref
     uses: ./.github/workflows/macos.yaml
     with:
       ffmpeg_ref: ${{ needs.resolve_ref.outputs.ref }}
-      ffmpeg_tag: ${{ needs.resolve_ref.outputs.tag }}
 
   build-windows:
     needs: resolve_ref
     uses: ./.github/workflows/windows.yaml
     with:
       ffmpeg_ref: ${{ needs.resolve_ref.outputs.ref }}
-      ffmpeg_tag: ${{ needs.resolve_ref.outputs.tag }}
 
   # --- Triggers ONLY when all three finishes successfully ---
   release:
