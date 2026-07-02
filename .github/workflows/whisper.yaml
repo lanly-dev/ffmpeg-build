@@ -1,0 +1,76 @@
+name: Unified Whisper.cpp Builder
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+      ffmpeg_ref:
+        required: true
+        type: string
+
+jobs:
+  whisper:
+    runs-on: ${{ inputs.os }}
+    steps:
+      # --- LINUX STEP ---
+      - name: Build Whisper for Linux
+        if: inputs.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          sudo apt-get update && sudo apt-get install -y build-essential cmake git
+          git clone https://github.com/ggml-org/whisper.cpp.git
+          cd whisper.cpp
+          cmake -B build -DCMAKE_INSTALL_PREFIX=$HOME/whisper_target -DBUILD_SHARED_LIBS=OFF
+          cmake --build build -j"$(nproc)"
+          cmake --install build
+
+      # --- MACOS STEP ---
+      - name: Build Whisper for macOS
+        if: inputs.os == 'macos-latest'
+        shell: bash
+        run: |
+          brew update && brew install cmake git
+          git clone https://github.com/ggml-org/whisper.cpp.git
+          cd whisper.cpp
+          cmake -B build -DCMAKE_INSTALL_PREFIX=$HOME/whisper_target -DBUILD_SHARED_LIBS=OFF
+          cmake --build build -j"$(sysctl -n hw.logicalcpu)"
+          cmake --install build
+
+      # --- WINDOWS STEP ---
+      - name: Setup MSYS2 for Windows
+        if: inputs.os == 'windows-latest'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: base-devel git mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake
+
+      - name: Build Whisper for Windows
+        if: inputs.os == 'windows-latest'
+        shell: msys2 {0}
+        run: |
+          git clone https://github.com/ggml-org/whisper.cpp.git
+          cd whisper.cpp
+          cmake -B build -G "MSYS Makefiles" -DCMAKE_INSTALL_PREFIX=/mingw64 -DBUILD_SHARED_LIBS=OFF
+          cmake --build build -j"$(nproc)"
+          cmake --install build
+
+      # --- ARTIFACT UPLOADS ---
+      - name: Upload Unix Artifacts
+        if: inputs.os != 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: whisper-compiled-${{ inputs.os }}
+          path: ${{ github.workspace }}/../whisper_target/
+
+      - name: Upload Windows Artifacts
+        if: inputs.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: whisper-compiled-windows-latest
+          path: |
+            /mingw64/lib/pkgconfig/whisper.pc
+            /mingw64/lib/libwhisper.a
+            /mingw64/include/whisper.h

@@ -1,4 +1,4 @@
-name: Reusable Linux Build
+name: Reusable Windows Build
 
 on:
   workflow_call:
@@ -6,38 +6,47 @@ on:
       ffmpeg_ref:
         required: true
         type: string
-      ffmpeg_tag:
-        required: false
-        type: string
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential yasm nasm git pkg-config curl zip cmake \
-            libx264-dev libx265-dev libvpx-dev libopus-dev libvorbis-dev libva-dev
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            base-devel git zip nasm yasm mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-x264 mingw-w64-x86_64-x265 mingw-w64-x86_64-libvpx
+            mingw-w64-x86_64-opus mingw-w64-x86_64-libvorbis mingw-w64-x86_64-freetype
+            mingw-w64-x86_64-fontconfig mingw-w64-x86_64-libass mingw-w64-x86_64-cmake
 
-      - name: Build whisper.cpp
-        run: |
-          git clone https://github.com/ggml-org/whisper.cpp.git
-          cd whisper.cpp && cmake -B build -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=OFF
-          cmake --build build -j"$(nproc)" && sudo cmake --install build
+      # Drop files directly back into the live MSYS2 file structure paths
+      - name: Download Pre-built Whisper
+        uses: actions/download-artifact@v4
+        with:
+          name: whisper-compiled-windows-latest
+          path: D:/a/_temp/msys64/mingw64
+
+      - name: Build ffnvcodec headers
+        shell: msys2 {0}
+        run: git clone https://github.com/FFmpeg/nv-codec-headers.git && cd nv-codec-headers && make install PREFIX=/mingw64
 
       - name: Build FFmpeg
+        shell: msys2 {0}
         run: |
+          set -euxo pipefail
+          export PKG_CONFIG_PATH="/mingw64/lib/pkgconfig:/mingw64/share/pkgconfig:$PKG_CONFIG_PATH"
           git clone https://github.com/FFmpeg/FFmpeg.git
           cd FFmpeg && git checkout "${{ inputs.ffmpeg_ref }}"
-          export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig:$PKG_CONFIG_PATH"
-          ./configure --prefix="$PWD/install" --disable-debug --disable-doc --enable-gpl --enable-version3 --enable-static --disable-shared --enable-libx264 --enable-libx265 --enable-libvpx --enable-libopus --enable-libvorbis --enable-whisper --enable-vaapi --enable-ffnvcodec --enable-nvenc --enable-nvdec
+          ./configure --prefix="$PWD/install" --target-os=mingw32 --arch=x86_64 --disable-debug --disable-doc --enable-gpl --enable-version3 --enable-static --disable-shared --enable-libx264 --enable-libx265 --enable-libvpx --enable-libopus --enable-libvorbis --enable-libass --enable-libfreetype --enable-libfontconfig --enable-whisper --enable-nvenc --enable-nvdec --pkg-config-flags="--static" --extra-ldflags="-static -static-libgcc -Wl,--allow-multiple-definition" --extra-libs="-lpthread -lm -lbcrypt"
           make -j"$(nproc)" && make install
-          mkdir -p package && cp -v install/bin/ffmpeg install/bin/ffprobe package/
+          mkdir -p package && cp -v install/bin/ffmpeg.exe install/bin/ffprobe.exe package/
 
-      - name: Upload Linux Binary
+      - name: Upload Windows Binary
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-linux
+          name: ffmpeg-windows
           path: FFmpeg/package/
