@@ -249,7 +249,7 @@ jobs:
             mingw-w64-x86_64-libtheora
             mingw-w64-x86_64-lame
             mingw-w64-x86_64-openjpeg2
-            mingw-w64-x86_64-soxr
+            mingw-w64-x86_64-libsoxr
             mingw-w64-x86_64-speex
             mingw-w64-x86_64-srt
             mingw-w64-x86_64-libwebp
