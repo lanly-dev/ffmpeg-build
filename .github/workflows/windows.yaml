@@ -1,0 +1,43 @@
+name: Reusable Linux Build
+
+on:
+  workflow_call:
+    inputs:
+      ffmpeg_ref:
+        required: true
+        type: string
+      ffmpeg_tag:
+        required: false
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential yasm nasm git pkg-config curl zip cmake \
+            libx264-dev libx265-dev libvpx-dev libopus-dev libvorbis-dev libva-dev
+
+      - name: Build whisper.cpp
+        run: |
+          git clone https://github.com/ggml-org/whisper.cpp.git
+          cd whisper.cpp && cmake -B build -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=OFF
+          cmake --build build -j"$(nproc)" && sudo cmake --install build
+
+      - name: Build FFmpeg
+        run: |
+          git clone https://github.com/FFmpeg/FFmpeg.git
+          cd FFmpeg && git checkout "${{ inputs.ffmpeg_ref }}"
+          export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig:$PKG_CONFIG_PATH"
+          ./configure --prefix="$PWD/install" --disable-debug --disable-doc --enable-gpl --enable-version3 --enable-static --disable-shared --enable-libx264 --enable-libx265 --enable-libvpx --enable-libopus --enable-libvorbis --enable-whisper --enable-vaapi --enable-ffnvcodec --enable-nvenc --enable-nvdec
+          make -j"$(nproc)" && make install
+          mkdir -p package && cp -v install/bin/ffmpeg install/bin/ffprobe package/
+
+      - name: Upload Linux Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-linux
+          path: FFmpeg/package/

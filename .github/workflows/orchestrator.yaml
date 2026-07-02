@@ -1,0 +1,88 @@
+name: Build FFmpeg (Monthly) and Release
+
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 1 * *'
+  workflow_dispatch:
+    inputs:
+      ffmpeg_ref:
+        description: 'FFmpeg ref (tag, branch, or commit SHA).'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  resolve_ref:
+    name: Resolve FFmpeg ref
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.resolve.outputs.ref }}
+      tag: ${{ steps.resolve.outputs.tag }}
+      date: ${{ steps.date.outputs.date }}
+    steps:
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y jq curl
+
+      - name: Compute date stamp
+        id: date
+        run: echo "date=$(date -u +'%Y%m')" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve ref
+        id: resolve
+        env:
+          INPUT_REF: ${{ github.event.inputs.ffmpeg_ref }}
+        run: |
+          if [ -n "$INPUT_REF" ]; then
+            echo "ref=$INPUT_REF" >> "$GITHUB_OUTPUT"
+            [[ "$INPUT_REF" =~ ^n[0-9] ]] && echo "tag=$INPUT_REF" >> "$GITHUB_OUTPUT" || echo "tag=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          TAG=$(curl -fsSL "https://api.github.com/repos/FFmpeg/FFmpeg/tags?per_page=100" | jq -r '.[].name' | grep -E '^n[0-9]+(\.[0-9]+)*$' | sort -Vr | head -n1)
+          echo "ref=$TAG" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+  # --- Call the 3 separate build files in parallel ---
+  build-linux:
+    needs: resolve_ref
+    uses: ./.github/workflows/linux.yaml
+    with:
+      ffmpeg_ref: ${{ needs.resolve_ref.outputs.ref }}
+      ffmpeg_tag: ${{ needs.resolve_ref.outputs.tag }}
+
+  build-macos:
+    needs: resolve_ref
+    uses: ./.github/workflows/macos.yaml
+    with:
+      ffmpeg_ref: ${{ needs.resolve_ref.outputs.ref }}
+      ffmpeg_tag: ${{ needs.resolve_ref.outputs.tag }}
+
+  build-windows:
+    needs: resolve_ref
+    uses: ./.github/workflows/windows.yaml
+    with:
+      ffmpeg_ref: ${{ needs.resolve_ref.outputs.ref }}
+      ffmpeg_tag: ${{ needs.resolve_ref.outputs.tag }}
+
+  # --- Triggers ONLY when all three finishes successfully ---
+  release:
+    name: Publish Release
+    needs: [resolve_ref, build-linux, build-macos, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/upload-artifact/merge@v4 # Merges or down-targets all uploaded workflow steps
+        with:
+          name: all-ffmpeg-artifacts
+          pattern: ffmpeg-*
+
+      - name: Download consolidated files
+        uses: actions/download-artifact@v4
+        with:
+          name: all-ffmpeg-artifacts
+          path: ./release
+
+      # [Your softprops/action-gh-release step logic goes here]
