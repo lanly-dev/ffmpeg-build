@@ -226,6 +226,7 @@ jobs:
         if: runner.os == 'Windows'
         uses: msys2/setup-msys2@v2
         with:
+          msystem: MINGW64
           update: true
           install: >-
             base-devel
@@ -302,6 +303,7 @@ jobs:
           export PATH="/mingw64/bin:$PATH"
           export PKG_CONFIG=/mingw64/bin/pkg-config
           export PKG_CONFIG_PATH="/mingw64/lib/pkgconfig:/mingw64/share/pkgconfig"
+          export PKG_CONFIG_LIBDIR="/mingw64/lib/pkgconfig:/mingw64/share/pkgconfig"
 
           # Ensure pkg-config resolves mingw64 fontconfig before running configure.
           $PKG_CONFIG --exists fontconfig
