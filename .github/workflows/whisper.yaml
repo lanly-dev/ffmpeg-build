@@ -45,7 +45,7 @@ jobs:
         with:
           msystem: MINGW64
           update: true
-          install: base-devel git mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake
+          install: base-devel git mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-ncurses
 
       - name: Build Whisper for Windows
         if: inputs.os == 'windows-latest'
@@ -78,6 +78,4 @@ jobs:
         with:
           name: whisper-compiled-windows-latest
           path: |
-            /mingw64/lib/pkgconfig/whisper.pc
-            /mingw64/lib/libwhisper.a
-            /mingw64/include/whisper.h
+            /mingw64/
