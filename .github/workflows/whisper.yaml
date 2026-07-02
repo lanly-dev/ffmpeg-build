@@ -58,12 +58,19 @@ jobs:
           cmake --install build
 
       # --- ARTIFACT UPLOADS ---
-      - name: Upload Unix Artifacts
-        if: inputs.os != 'windows-latest'
+      - name: Upload Linux Artifacts
+        if: inputs.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: whisper-compiled-${{ inputs.os }}
-          path: ${{ github.workspace }}/../whisper_target/
+          name: whisper-compiled-ubuntu-latest
+          path: /home/runner/whisper_target/
+
+      - name: Upload macOS Artifacts
+        if: inputs.os == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: whisper-compiled-macos-latest
+          path: /Users/runner/whisper_target/
 
       - name: Upload Windows Artifacts
         if: inputs.os == 'windows-latest'
