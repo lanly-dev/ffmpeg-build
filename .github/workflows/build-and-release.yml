@@ -300,8 +300,8 @@ jobs:
             --enable-nvdec \
             --enable-amf \
             --pkg-config-flags="--static" \
-            --extra-ldexeflags="-static -Wl,--allow-multiple-definition" \
-            --extra-ldflags="-static -Wl,--allow-multiple-definition" \
+            --extra-ldexeflags="-static -static-libgcc -Wl,--allow-multiple-definition" \
+            --extra-ldflags="-static -static-libgcc -Wl,--allow-multiple-definition" \
             --extra-libs="-lpthread -lm"
           # Note: Whisper support is auto-detected if whisper.cpp is installed
           # Note: SVG/WebP disabled for consistency across platforms
