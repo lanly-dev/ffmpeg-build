@@ -133,7 +133,7 @@ jobs:
           # Capture commit SHA
           git rev-parse HEAD > ../ffmpeg-commit.txt
           # Build with GPL codecs and GPU acceleration (redistributable)
-          # Note: Whisper support is auto-detected if whisper.cpp is installed
+          # Note: Whisper filter support is enabled via --enable-whisper
           # Note: ffnvcodec headers enable NVENC/NVDEC without nonfree requirement
           ./configure \
             --prefix="$PWD/install" \
@@ -148,6 +148,7 @@ jobs:
             --enable-libvpx \
             --enable-libopus \
             --enable-libvorbis \
+            --enable-whisper \
             --enable-vaapi \
             --enable-ffnvcodec \
             --enable-nvenc \
@@ -196,7 +197,7 @@ jobs:
           git clone https://github.com/FFmpeg/FFmpeg.git
           cd FFmpeg
           git checkout "$FFMPEG_REF"
-          # Note: Whisper support is auto-detected if whisper.cpp is installed
+          # Note: Whisper filter support is enabled via --enable-whisper
           # Note: SVG/WebP disabled (pkg-config detection issues on macOS)
           ./configure \
             --prefix="$PWD/install" \
@@ -211,6 +212,7 @@ jobs:
             --enable-libvpx \
             --enable-libopus \
             --enable-libvorbis \
+            --enable-whisper \
             --enable-videotoolbox
           make -j"$(sysctl -n hw.logicalcpu)"
           make install
@@ -237,6 +239,22 @@ jobs:
             mingw-w64-x86_64-libvpx
             mingw-w64-x86_64-opus
             mingw-w64-x86_64-libvorbis
+            mingw-w64-x86_64-aom
+            mingw-w64-x86_64-dav1d
+            mingw-w64-x86_64-freetype
+            mingw-w64-x86_64-fontconfig
+            mingw-w64-x86_64-fribidi
+            mingw-w64-x86_64-harfbuzz
+            mingw-w64-x86_64-libass
+            mingw-w64-x86_64-libtheora
+            mingw-w64-x86_64-lame
+            mingw-w64-x86_64-openjpeg2
+            mingw-w64-x86_64-soxr
+            mingw-w64-x86_64-speex
+            mingw-w64-x86_64-srt
+            mingw-w64-x86_64-libwebp
+            mingw-w64-x86_64-libxml2
+            mingw-w64-x86_64-zimg
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-zlib
             mingw-w64-x86_64-bzip2
@@ -296,6 +314,22 @@ jobs:
             --enable-libvpx \
             --enable-libopus \
             --enable-libvorbis \
+            --enable-libaom \
+            --enable-libdav1d \
+            --enable-libass \
+            --enable-libfreetype \
+            --enable-libfontconfig \
+            --enable-libfribidi \
+            --enable-libtheora \
+            --enable-libmp3lame \
+            --enable-libopenjpeg \
+            --enable-libsoxr \
+            --enable-libspeex \
+            --enable-libsrt \
+            --enable-libwebp \
+            --enable-libxml2 \
+            --enable-libzimg \
+            --enable-whisper \
             --enable-nvenc \
             --enable-nvdec \
             --enable-amf \
@@ -303,7 +337,7 @@ jobs:
             --extra-ldexeflags="-static -static-libgcc -Wl,--allow-multiple-definition" \
             --extra-ldflags="-static -static-libgcc -Wl,--allow-multiple-definition" \
             --extra-libs="-lpthread -lm"
-          # Note: Whisper support is auto-detected if whisper.cpp is installed
+          # Note: Whisper filter support is enabled via --enable-whisper
           # Note: SVG/WebP disabled for consistency across platforms
           make -j"$(nproc)"
           make install
@@ -447,7 +481,7 @@ jobs:
             - **Video Codecs:** x264 (H.264), x265 (H.265/HEVC), VP8/VP9
             - **Audio Codecs:** Opus, Vorbis
             - **Image Formats:** GIF (built-in support on all platforms)
-            - **AI/ML:** Whisper (automatic speech recognition - if detected during build)
+            - **AI/ML:** Whisper filter support (automatic speech recognition via `-af whisper=...`, requires model files)
             - **GPU Acceleration:**
               - NVIDIA: NVENC/NVDEC (Linux and Windows - uses ffnvcodec headers, GPL-compatible)
               - AMD: AMF (Windows)
