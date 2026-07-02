@@ -44,21 +44,33 @@ jobs:
           echo "ref=$TAG" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-  # --- Call the 3 separate build files in parallel ---
-  build-linux:
+  # --- Step 2: Build whisper.cpp in parallel across all 3 platforms ---
+  build-whisper-dependencies:
+    name: Build Whisper Dependencies
     needs: resolve_ref
+    uses: ./.github/workflows/whisper.yaml
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    with:
+      os: ${{ matrix.os }}
+      ffmpeg_ref: ${{ needs.resolve_ref.outputs.ref }}
+
+  # --- Step 3: Call the 3 separate build files (now waiting on Whisper) ---
+  build-linux:
+    needs: [resolve_ref, build-whisper-dependencies]
     uses: ./.github/workflows/linux.yaml
     with:
       ffmpeg_ref: ${{ needs.resolve_ref.outputs.ref }}
 
   build-macos:
-    needs: resolve_ref
+    needs: [resolve_ref, build-whisper-dependencies]
     uses: ./.github/workflows/macos.yaml
     with:
       ffmpeg_ref: ${{ needs.resolve_ref.outputs.ref }}
 
   build-windows:
-    needs: resolve_ref
+    needs: [resolve_ref, build-whisper-dependencies]
     uses: ./.github/workflows/windows.yaml
     with:
       ffmpeg_ref: ${{ needs.resolve_ref.outputs.ref }}
@@ -80,5 +92,3 @@ jobs:
         with:
           name: all-ffmpeg-artifacts
           path: ./release
-
-      # [Your softprops/action-gh-release step logic goes here]
