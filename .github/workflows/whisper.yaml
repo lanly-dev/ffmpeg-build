@@ -20,11 +20,15 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update && sudo apt-get install -y build-essential cmake git pkg-config
-          git clone https://github.com/ggml-org/whisper.cpp.git
+          git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git
           cd whisper.cpp
-          cmake -B build -DCMAKE_INSTALL_PREFIX=$HOME/whisper_target -DBUILD_SHARED_LIBS=OFF -DWHISPER_PKG_CONFIG=ON
+          cmake -B build -DCMAKE_INSTALL_PREFIX="$HOME/whisper_target" -DBUILD_SHARED_LIBS=OFF
           cmake --build build -j"$(nproc)"
           cmake --install build
+          # Verify.pc was installed
+          echo "=== Installed files ==="
+          find "$HOME/whisper_target" -name "*.pc" 2>/dev/null || true
+          ls -la "$HOME/whisper_target/lib/pkgconfig/" 2>/dev/null || ls -la "$HOME/whisper_target/lib64/pkgconfig/" 2>/dev/null || echo "No pkgconfig dir found"
 
       # --- MACOS STEP ---
       - name: Build Whisper for macOS
@@ -32,11 +36,14 @@ jobs:
         shell: bash
         run: |
           brew update && brew install cmake git pkg-config
-          git clone https://github.com/ggml-org/whisper.cpp.git
+          git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git
           cd whisper.cpp
-          cmake -B build -DCMAKE_INSTALL_PREFIX=$HOME/whisper_target -DBUILD_SHARED_LIBS=OFF -DWHISPER_PKG_CONFIG=ON
+          cmake -B build -DCMAKE_INSTALL_PREFIX="$HOME/whisper_target" -DBUILD_SHARED_LIBS=OFF
           cmake --build build -j"$(sysctl -n hw.logicalcpu)"
           cmake --install build
+          echo "=== Installed files ==="
+          find "$HOME/whisper_target" -name "*.pc" 2>/dev/null || true
+          ls -la "$HOME/whisper_target/lib/pkgconfig/" 2>/dev/null || ls -la "$HOME/whisper_target/lib64/pkgconfig/" 2>/dev/null || echo "No pkgconfig dir found"
 
       # --- WINDOWS STEP ---
       - name: Setup MSYS2 for Windows
@@ -51,11 +58,14 @@ jobs:
         if: inputs.os == 'windows-latest'
         shell: msys2 {0}
         run: |
-          git clone https://github.com/ggml-org/whisper.cpp.git
+          git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git
           cd whisper.cpp
-          cmake -B build -G "MSYS Makefiles" -DCMAKE_INSTALL_PREFIX=$PWD/../whisper_target -DBUILD_SHARED_LIBS=OFF -DWHISPER_PKG_CONFIG=ON
+          cmake -B build -G "MSYS Makefiles" -DCMAKE_INSTALL_PREFIX="$PWD/../whisper_target" -DBUILD_SHARED_LIBS=OFF
           cmake --build build -j"$(nproc)"
           cmake --install build
+          echo "=== Installed files ==="
+          find "$PWD/../whisper_target" -name "*.pc" 2>/dev/null || true
+          ls -la "$PWD/../whisper_target/lib/pkgconfig/" 2>/dev/null || ls -la "$PWD/../whisper_target/lib/pkgconfig/" 2>/dev/null || echo "No pkgconfig dir found"
 
       # --- ARTIFACT UPLOADS ---
       - name: Upload Linux Artifacts
