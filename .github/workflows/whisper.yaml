@@ -53,7 +53,7 @@ jobs:
         run: |
           git clone https://github.com/ggml-org/whisper.cpp.git
           cd whisper.cpp
-          cmake -B build -G "MSYS Makefiles" -DCMAKE_INSTALL_PREFIX=/mingw64 -DBUILD_SHARED_LIBS=OFF "-DWHISPER_PKG_CONFIG=ON"
+          cmake -B build -G "MSYS Makefiles" -DCMAKE_INSTALL_PREFIX=$PWD/../whisper_target -DBUILD_SHARED_LIBS=OFF -DWHISPER_PKG_CONFIG=ON
           cmake --build build -j"$(nproc)"
           cmake --install build
 
@@ -77,5 +77,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: whisper-compiled-windows-latest
-          path: |
-            /mingw64/
+          path: whisper_target/
