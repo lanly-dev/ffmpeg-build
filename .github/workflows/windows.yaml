@@ -34,11 +34,11 @@ jobs:
         run: git clone https://github.com/FFmpeg/nv-codec-headers.git && cd nv-codec-headers && make install PREFIX=/mingw64
 
       - name: Copy Whisper libs to MSYS2
-        shell: bash
+        shell: msys2 {0}
         run: |
-          cp -r "${{ github.workspace }}/whisper_download/mingw64/lib"/* /mingw64/lib/
-          cp -r "${{ github.workspace }}/whisper_download/mingw64/include"/* /mingw64/include/
-          cp -r "${{ github.workspace }}/whisper_download/mingw64/lib/pkgconfig"/* /mingw64/lib/pkgconfig/
+          cp -r "${{ github.workspace }}\\whisper_download\\lib"/* /mingw64/lib/
+          cp -r "${{ github.workspace }}\\whisper_download\\include"/* /mingw64/include/
+          cp -r "${{ github.workspace }}\\whisper_download\\lib\\pkgconfig"/* /mingw64/lib/pkgconfig/
 
       - name: Build FFmpeg
         shell: msys2 {0}
