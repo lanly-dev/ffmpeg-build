@@ -54,6 +54,12 @@ jobs:
               -e 's|^includedir=.*|includedir=${prefix}/include|' \
               "/mingw64/lib/pkgconfig/$(basename "$pc")" || true
           done
+          # ggml libraries are installed without the 'lib' prefix (e.g. ggml.a instead
+          # of libggml.a). MinGW's linker requires the 'lib' prefix for -lggml flags.
+          for lib in "$WHISPER_DIR/lib"/*.a; do
+            base=$(basename "$lib")
+            case "$base" in lib*) ;; *) cp "/mingw64/lib/$base" "/mingw64/lib/lib${base}" ;; esac
+          done
 
       - name: Build FFmpeg
         shell: msys2 {0}
