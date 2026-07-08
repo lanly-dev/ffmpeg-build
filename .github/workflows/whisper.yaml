@@ -1,90 +1,57 @@
-name: Unified Whisper.cpp Builder
+name: Download Whisper from whisper-build Release
 
 on:
   workflow_call:
     inputs:
-      os:
-        required: true
-        type: string
-      ffmpeg_ref:
+      tag_name:
         required: true
         type: string
 
 jobs:
-  whisper:
-    runs-on: ${{ inputs.os }}
+  download-whisper:
+    runs-on: ubuntu-latest
     steps:
-      # --- LINUX STEP ---
-      - name: Build Whisper for Linux
-        if: inputs.os == 'ubuntu-latest'
-        shell: bash
+      # --- Get the latest release tag ---
+      - name: Get whisper-build latest release
+        id: get_tag
         run: |
-          sudo apt-get update && sudo apt-get install -y build-essential cmake git pkg-config
-          git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git
-          cd whisper.cpp
-          cmake -B build -DCMAKE_INSTALL_PREFIX="$HOME/whisper_target" -DBUILD_SHARED_LIBS=OFF
-          cmake --build build -j"$(nproc)"
-          cmake --install build
-          # Verify.pc was installed
-          echo "=== Installed files ==="
-          find "$HOME/whisper_target" -name "*.pc" 2>/dev/null || true
-          ls -la "$HOME/whisper_target/lib/pkgconfig/" 2>/dev/null || ls -la "$HOME/whisper_target/lib64/pkgconfig/" 2>/dev/null || echo "No pkgconfig dir found"
+          LATEST=$(curl -fsSL "https://api.github.com/repos/lanly-dev/whisper-build/releases/latest" | jq -r '.tag_name')
+          echo "tag=$LATEST" >> "$GITHUB_OUTPUT"
 
-      # --- MACOS STEP ---
-      - name: Build Whisper for macOS
-        if: inputs.os == 'macos-latest'
-        shell: bash
+      # --- Download all whisper install trees ---
+      - name: Download Linux whisper install tree
         run: |
-          brew update && brew install cmake git pkg-config
-          git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git
-          cd whisper.cpp
-          cmake -B build -DCMAKE_INSTALL_PREFIX="$HOME/whisper_target" -DBUILD_SHARED_LIBS=OFF
-          cmake --build build -j"$(sysctl -n hw.logicalcpu)"
-          cmake --install build
-          echo "=== Installed files ==="
-          find "$HOME/whisper_target" -name "*.pc" 2>/dev/null || true
-          ls -la "$HOME/whisper_target/lib/pkgconfig/" 2>/dev/null || ls -la "$HOME/whisper_target/lib64/pkgconfig/" 2>/dev/null || echo "No pkgconfig dir found"
+          mkdir -p whisper_artifacts
+          curl -fsSL -o whisper_artifacts/whisper_install-linux-x86_64.tar.gz \
+            "https://github.com/lanly-dev/whisper-build/releases/download/${{ steps.get_tag.outputs.tag }}/whisper_install-linux-x86_64.tar.gz"
 
-      # --- WINDOWS STEP ---
-      - name: Setup MSYS2 for Windows
-        if: inputs.os == 'windows-latest'
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: true
-          install: base-devel git mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-ncurses
-
-      - name: Build Whisper for Windows
-        if: inputs.os == 'windows-latest'
-        shell: msys2 {0}
+      - name: Download macOS whisper install tree
         run: |
-          git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git
-          cd whisper.cpp
-          cmake -B build -G "MSYS Makefiles" -DCMAKE_INSTALL_PREFIX="$PWD/../whisper_target" -DBUILD_SHARED_LIBS=OFF
-          cmake --build build -j"$(nproc)"
-          cmake --install build
-          echo "=== Installed files ==="
-          find "$PWD/../whisper_target" -name "*.pc" 2>/dev/null || true
-          ls -la "$PWD/../whisper_target/lib/pkgconfig/" 2>/dev/null || ls -la "$PWD/../whisper_target/lib/pkgconfig/" 2>/dev/null || echo "No pkgconfig dir found"
+          mkdir -p whisper_artifacts
+          curl -fsSL -o whisper_artifacts/whisper_install-darwin-universal.tar.gz \
+            "https://github.com/lanly-dev/whisper-build/releases/download/${{ steps.get_tag.outputs.tag }}/whisper_install-darwin-universal.tar.gz"
 
-      # --- ARTIFACT UPLOADS ---
-      - name: Upload Linux Artifacts
-        if: inputs.os == 'ubuntu-latest'
+      - name: Download Windows whisper install tree
+        run: |
+          mkdir -p whisper_artifacts
+          curl -fsSL -o whisper_artifacts/whisper_install-windows-x86_64.tar.gz \
+            "https://github.com/lanly-dev/whisper-build/releases/download/${{ steps.get_tag.outputs.tag }}/whisper_install-windows-x86_64.tar.gz"
+
+      # --- Upload combined artifacts for downstream jobs ---
+      - name: Upload Linux whisper to matrix
         uses: actions/upload-artifact@v4
         with:
-          name: whisper-compiled-ubuntu-latest
-          path: /home/runner/whisper_target/
+          name: whisper-linux-latest
+          path: whisper_artifacts/whisper_install-linux-x86_64.tar.gz
 
-      - name: Upload macOS Artifacts
-        if: inputs.os == 'macos-latest'
+      - name: Upload macOS whisper to matrix
         uses: actions/upload-artifact@v4
         with:
-          name: whisper-compiled-macos-latest
-          path: /Users/runner/whisper_target/
+          name: whisper-macos-latest
+          path: whisper_artifacts/whisper_install-darwin-universal.tar.gz
 
-      - name: Upload Windows Artifacts
-        if: inputs.os == 'windows-latest'
+      - name: Upload Windows whisper to matrix
         uses: actions/upload-artifact@v4
         with:
-          name: whisper-compiled-windows-latest
-          path: whisper_target/
+          name: whisper-windows-latest
+          path: whisper_artifacts/whisper_install-windows-x86_64.tar.gz

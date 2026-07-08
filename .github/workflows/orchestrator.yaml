@@ -44,33 +44,27 @@ jobs:
           echo "ref=$TAG" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-  # --- Step 2: Build whisper.cpp in parallel across all 3 platforms ---
-  build-whisper-dependencies:
-    name: Build Whisper Dependencies
+  # --- Step 2: Download whisper from whisper-build releases ---
+  download-whisper:
+    name: Download Whisper Dependencies
     needs: resolve_ref
     uses: ./.github/workflows/whisper.yaml
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    with:
-      os: ${{ matrix.os }}
-      ffmpeg_ref: ${{ needs.resolve_ref.outputs.ref }}
 
   # --- Step 3: Call the 3 separate build files (now waiting on Whisper) ---
   build-linux:
-    needs: [resolve_ref, build-whisper-dependencies]
+    needs: [resolve_ref, download-whisper]
     uses: ./.github/workflows/linux.yaml
     with:
       ffmpeg_ref: ${{ needs.resolve_ref.outputs.ref }}
 
   build-macos:
-    needs: [resolve_ref, build-whisper-dependencies]
+    needs: [resolve_ref, download-whisper]
     uses: ./.github/workflows/macos.yaml
     with:
       ffmpeg_ref: ${{ needs.resolve_ref.outputs.ref }}
 
   build-windows:
-    needs: [resolve_ref, build-whisper-dependencies]
+    needs: [resolve_ref, download-whisper]
     uses: ./.github/workflows/windows.yaml
     with:
       ffmpeg_ref: ${{ needs.resolve_ref.outputs.ref }}
@@ -82,13 +76,44 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
-        uses: actions/upload-artifact/merge@v4 # Merges or down-targets all uploaded workflow steps
+        uses: actions/upload-artifact/merge@v4
         with:
           name: all-ffmpeg-artifacts
           pattern: ffmpeg-*
 
-      - name: Download consolidated files
-        uses: actions/download-artifact@v4
-        with:
-          name: all-ffmpeg-artifacts
-          path: ./release
+      - name: Consolidate release files
+        run: |
+          mkdir -p release
+          for artifact in ffmpeg-linux ffmpeg-macos ffmpeg-windows whisper-linux-latest whisper-macos-latest whisper-windows-latest; do
+            if ls "${artifact}"*; then
+              # Extract tarballs for artifacts that are archives
+              case "$artifact" in
+                whisper-*)
+                  mkdir -p "release/$(echo $artifact | sed 's/ffmpeg/whisper/')"
+                  cd "release/$(echo $artifact | sed 's/ffmpeg/whisper/')"
+                  tar xzf ../${artifact} 2>/dev/null || true
+                  cd ../../
+                  ;;
+                ffmpeg-linux)
+                  cp -rv "${artifact}/"* release/ 2>/dev/null || true
+                  ;;
+                *)
+                  mkdir -p "release/$artifact"
+                  cp -rv "${artifact}/"* "release/$artifact/" 2>/dev/null || true
+                  ;;
+              esac
+            fi
+          done
+
+      - name: Create or Update Release (Latest FFmpeg)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE="${{ needs.resolve_ref.outputs.date }}"
+          TAG="ffmpeg-n${DATE}"
+          # Fallback to a unique date-based tag if no n-tag exists
+          if [ -z "${{ needs.resolve_ref.outputs.tag }}" ]; then
+            TAG="ffmpeg-latest-${{ needs.resolve_ref.outputs.date }}"
+          fi
+          BODY="Automated build from $(date -u +'%Y-%m-%d') using FFmpeg ref \`${{ needs.resolve_ref.outputs.ref }}\` with whisper support."
+          gh release create "$TAG" --title "FFmpeg ${{ needs.resolve_ref.outputs.ref }}" --notes "$BODY" release/ || true

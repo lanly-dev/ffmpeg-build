@@ -18,14 +18,17 @@ jobs:
       - name: Download Pre-built Whisper
         uses: actions/download-artifact@v4
         with:
-          name: whisper-compiled-macos-latest
-          path: ${{ github.workspace }}/whisper_libs
+          name: whisper-macos-latest
+          path: ${{ github.workspace }}/whisper
+
+      - name: Extract Whisper
+        run: tar xzf "${{ github.workspace }}/whisper/whisper_install-darwin-universal.tar.gz" -C "${{ github.workspace }}"
 
       - name: Build FFmpeg
         run: |
           git clone https://github.com/FFmpeg/FFmpeg.git
           cd FFmpeg && git checkout "${{ inputs.ffmpeg_ref }}"
-          export PKG_CONFIG_PATH="${{ github.workspace }}/whisper_libs/lib/pkgconfig:${{ github.workspace }}/whisper_libs/lib64/pkgconfig:/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH"
+          export PKG_CONFIG_PATH="${{ github.workspace }}/usr/local/lib/pkgconfig:${{ github.workspace }}/usr/local/lib64/pkgconfig:/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH"
           ./configure --prefix="$PWD/install" --disable-debug --disable-doc --enable-gpl --enable-version3 --enable-static --disable-shared --enable-libx264 --enable-libx265 --enable-libvpx --enable-libopus --enable-libvorbis --enable-whisper --enable-videotoolbox
           make -j"$(sysctl -n hw.logicalcpu)" && make install
           mkdir -p package && cp -v install/bin/ffmpeg install/bin/ffprobe package/
