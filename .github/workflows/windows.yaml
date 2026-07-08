@@ -32,7 +32,9 @@ jobs:
 
       - name: Extract Whisper
         shell: msys2 {0}
-        run: tar xzf "$GITHUB_WORKSPACE/whisper_download/whisper_install-windows-x86_64.tar.gz" -C "$GITHUB_WORKSPACE/whisper_download"
+        run: |
+          WORKSPACE=$(cygpath "$GITHUB_WORKSPACE")
+          tar xzf "$WORKSPACE/whisper_download/whisper_install-windows-x86_64.tar.gz" -C "$WORKSPACE/whisper_download"
 
       - name: Build ffnvcodec headers
         shell: msys2 {0}
@@ -41,9 +43,10 @@ jobs:
       - name: Copy Whisper libs to MSYS2
         shell: msys2 {0}
         run: |
-          cp -r "$GITHUB_WORKSPACE/whisper_download/usr/local/lib"/* /mingw64/lib/
-          cp -r "$GITHUB_WORKSPACE/whisper_download/usr/local/include"/* /mingw64/include/
-          cp -r "$GITHUB_WORKSPACE/whisper_download/usr/local/lib/pkgconfig"/* /mingw64/lib/pkgconfig/
+          WORKSPACE=$(cygpath "$GITHUB_WORKSPACE")
+          cp -r "$WORKSPACE/whisper_download/usr/local/lib"/* /mingw64/lib/
+          cp -r "$WORKSPACE/whisper_download/usr/local/include"/* /mingw64/include/
+          cp -r "$WORKSPACE/whisper_download/usr/local/lib/pkgconfig"/* /mingw64/lib/pkgconfig/
 
       - name: Verify fontconfig.pc exists
         shell: msys2 {0}
