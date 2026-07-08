@@ -51,12 +51,6 @@ jobs:
             [ -f "$pc" ] && sed -i 's|^prefix=.*|prefix=/mingw64|' "/mingw64/lib/pkgconfig/$(basename "$pc")" || true
           done
 
-      - name: Verify fontconfig.pc exists
-        shell: msys2 {0}
-        run: |
-          ls -la /mingw64/lib/pkgconfig/fontconfig.pc || echo "fontconfig.pc NOT FOUND"
-          pkg-config --modversion fontconfig 2>&1 || echo "pkg-config failed for fontconfig"
-
       - name: Build FFmpeg
         shell: msys2 {0}
         run: |
@@ -64,7 +58,7 @@ jobs:
           export PKG_CONFIG_PATH="/mingw64/lib/pkgconfig:/mingw64/share/pkgconfig:/usr/share/pkgconfig:$PKG_CONFIG_PATH"
           git clone https://github.com/FFmpeg/FFmpeg.git
           cd FFmpeg && git checkout "${{ inputs.ffmpeg_ref }}"
-          ./configure --prefix="$PWD/install" --target-os=mingw32 --arch=x86_64 --disable-debug --disable-doc --enable-gpl --enable-version3 --enable-static --disable-shared --enable-libx264 --enable-libx265 --enable-libvpx --enable-libopus --enable-libvorbis --enable-libass --enable-libfreetype --enable-libfontconfig --enable-whisper --enable-nvenc --enable-nvdec --pkg-config-flags="--static" --extra-ldflags="-static -static-libgcc -Wl,--allow-multiple-definition" --extra-libs="-lpthread -lm -lbcrypt"
+          ./configure --prefix="$PWD/install" --target-os=mingw32 --arch=x86_64 --disable-debug --disable-doc --enable-gpl --enable-version3 --enable-static --disable-shared --enable-libx264 --enable-libx265 --enable-libvpx --enable-libopus --enable-libvorbis --enable-libass --enable-libfreetype --enable-whisper --enable-nvenc --enable-nvdec --pkg-config-flags="--static" --extra-ldflags="-static -static-libgcc -Wl,--allow-multiple-definition" --extra-libs="-lpthread -lm -lbcrypt"
           make -j$(nproc) && make install
           mkdir -p package && cp -v install/bin/ffmpeg.exe install/bin/ffprobe.exe package/
 
