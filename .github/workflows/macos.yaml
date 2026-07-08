@@ -24,11 +24,22 @@ jobs:
       - name: Extract Whisper
         run: tar xzf "${{ github.workspace }}/whisper/whisper_install-darwin-universal.tar.gz" -C "${{ github.workspace }}"
 
+      - name: Fix Whisper pkg-config paths
+        run: |
+          WHISPER_DIR="${{ github.workspace }}/whisper_target"
+          for pc in "$WHISPER_DIR/lib/pkgconfig"/*.pc; do
+            sed -i '' \
+              -e "s|^prefix=.*|prefix=$WHISPER_DIR|" \
+              -e 's|^libdir=.*|libdir=${prefix}/lib|' \
+              -e 's|^includedir=.*|includedir=${prefix}/include|' \
+              "$pc"
+          done
+
       - name: Build FFmpeg
         run: |
           git clone https://github.com/FFmpeg/FFmpeg.git
           cd FFmpeg && git checkout "${{ inputs.ffmpeg_ref }}"
-          export PKG_CONFIG_PATH="${{ github.workspace }}/usr/local/lib/pkgconfig:${{ github.workspace }}/usr/local/lib64/pkgconfig:/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH"
+          export PKG_CONFIG_PATH="${{ github.workspace }}/whisper_target/lib/pkgconfig:/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH"
           ./configure --prefix="$PWD/install" --disable-debug --disable-doc --enable-gpl --enable-version3 --enable-static --disable-shared --enable-libx264 --enable-libx265 --enable-libvpx --enable-libopus --enable-libvorbis --enable-whisper --enable-videotoolbox
           make -j"$(sysctl -n hw.logicalcpu)" && make install
           mkdir -p package && cp -v install/bin/ffmpeg install/bin/ffprobe package/
