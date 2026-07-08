@@ -12,51 +12,72 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup MSYS2
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
           update: true
           install: >-
-            base-devel git zip nasm yasm mingw-w64-x86_64-toolchain
-            mingw-w64-x86_64-x264 mingw-w64-x86_64-x265 mingw-w64-x86_64-libvpx
-            mingw-w64-x86_64-opus mingw-w64-x86_64-libvorbis mingw-w64-x86_64-freetype
-            mingw-w64-x86_64-fontconfig mingw-w64-x86_64-libass mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-libiconv mingw-w64-x86_64-gettext
+            base-devel git zip nasm yasm
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-x264
+            mingw-w64-x86_64-x265
+            mingw-w64-x86_64-libvpx
+            mingw-w64-x86_64-opus
+            mingw-w64-x86_64-libvorbis
+            mingw-w64-x86_64-freetype
+            mingw-w64-x86_64-fontconfig
+            mingw-w64-x86_64-libass
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-libiconv
+            mingw-w64-x86_64-gettext
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-bzip2
+            mingw-w64-x86_64-xz
+
+      - name: Install nv-codec-headers
+        shell: msys2 {0}
+        run: |
+          git clone https://github.com/FFmpeg/nv-codec-headers.git
+          cd nv-codec-headers
+          make install PREFIX=/mingw64
+
+      - name: Install AMF headers
+        shell: msys2 {0}
+        run: |
+          git clone https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git
+          mkdir -p /mingw64/include/AMF
+          cp -r AMF/amf/public/include/* /mingw64/include/AMF/
 
       - name: Download Pre-built Whisper
         uses: actions/download-artifact@v4
         with:
           name: whisper-windows-latest
-          path: ${{ github.workspace }}/whisper_download
+          path: ${{ github.workspace }}/whisper_dl
 
-      - name: Extract Whisper
+      - name: Extract and configure Whisper
         shell: msys2 {0}
         run: |
           WORKSPACE=$(cygpath "$GITHUB_WORKSPACE")
-          tar xzf "$WORKSPACE/whisper_download/whisper_install-windows-x86_64.tar.gz" -C "$WORKSPACE/whisper_download"
+          tar xzf "$WORKSPACE/whisper_dl/whisper_install-windows-x86_64.tar.gz" -C "$WORKSPACE"
+          WHISPER_DIR="$WORKSPACE/whisper_target"
 
-      - name: Build ffnvcodec headers
-        shell: msys2 {0}
-        run: git clone https://github.com/FFmpeg/nv-codec-headers.git && cd nv-codec-headers && make install PREFIX=/mingw64
+          # Copy headers and libs into the MINGW64 sysroot so FFmpeg configure can find them
+          cp -r "$WHISPER_DIR/include"/. /mingw64/include/
+          cp -r "$WHISPER_DIR/lib"/. /mingw64/lib/
 
-      - name: Copy Whisper libs to MSYS2
-        shell: msys2 {0}
-        run: |
-          WORKSPACE=$(cygpath "$GITHUB_WORKSPACE")
-          WHISPER_DIR="$WORKSPACE/whisper_download/whisper_target"
-          cp -r "$WHISPER_DIR/lib"/* /mingw64/lib/
-          cp -r "$WHISPER_DIR/include"/* /mingw64/include/
-          for pc in "$WHISPER_DIR/lib/pkgconfig"/*.pc; do
-            [ -f "$pc" ] && sed -i \
+          # Fix pkg-config files to point at /mingw64
+          for pc in /mingw64/lib/pkgconfig/whisper*.pc /mingw64/lib/pkgconfig/ggml*.pc; do
+            [ -f "$pc" ] || continue
+            sed -i \
               -e 's|^prefix=.*|prefix=/mingw64|' \
               -e 's|^libdir=.*|libdir=${prefix}/lib|' \
               -e 's|^includedir=.*|includedir=${prefix}/include|' \
-              "/mingw64/lib/pkgconfig/$(basename "$pc")" || true
+              "$pc"
           done
-          # ggml libraries are installed without the 'lib' prefix (e.g. ggml.a
-          # instead of libggml.a). MinGW's linker requires the 'lib' prefix to
-          # resolve -lggml flags used in whisper.pc, so create copies here.
+
+          # ggml libs may be missing the 'lib' prefix required by MinGW linker
           for lib in /mingw64/lib/*.a; do
             base=$(basename "$lib")
             case "$base" in lib*) ;; *) cp "$lib" "/mingw64/lib/lib${base}" ;; esac
@@ -66,12 +87,37 @@ jobs:
         shell: msys2 {0}
         run: |
           set -euxo pipefail
-          export PKG_CONFIG_PATH="/mingw64/lib/pkgconfig:/mingw64/share/pkgconfig:/usr/share/pkgconfig:$PKG_CONFIG_PATH"
+          export PKG_CONFIG_PATH="/mingw64/lib/pkgconfig:/mingw64/share/pkgconfig:/usr/share/pkgconfig"
           git clone https://github.com/FFmpeg/FFmpeg.git
-          cd FFmpeg && git checkout "${{ inputs.ffmpeg_ref }}"
-          ./configure --prefix="$PWD/install" --target-os=mingw32 --arch=x86_64 --disable-debug --disable-doc --enable-gpl --enable-version3 --enable-static --disable-shared --enable-libx264 --enable-libx265 --enable-libvpx --enable-libopus --enable-libvorbis --enable-whisper --enable-nvenc --enable-nvdec --pkg-config-flags="--static" --extra-ldflags="-static -static-libgcc -Wl,--allow-multiple-definition" --extra-libs="-lpthread -lm -lbcrypt"
-          make -j$(nproc) && make install
-          mkdir -p package && cp -v install/bin/ffmpeg.exe install/bin/ffprobe.exe package/
+          cd FFmpeg
+          git checkout "${{ inputs.ffmpeg_ref }}"
+          ./configure \
+            --prefix="$PWD/install" \
+            --target-os=mingw32 \
+            --arch=x86_64 \
+            --disable-debug \
+            --disable-doc \
+            --enable-gpl \
+            --enable-version3 \
+            --enable-static \
+            --disable-shared \
+            --enable-libx264 \
+            --enable-libx265 \
+            --enable-libvpx \
+            --enable-libopus \
+            --enable-libvorbis \
+            --enable-libass \
+            --enable-nvenc \
+            --enable-nvdec \
+            --enable-amf \
+            --enable-whisper \
+            --pkg-config-flags="--static" \
+            --extra-ldflags="-static" \
+            --extra-libs="-lpthread -lm -lbcrypt -lole32 -loleaut32"
+          make -j"$(nproc)"
+          make install
+          mkdir -p package
+          cp -v install/bin/ffmpeg.exe install/bin/ffprobe.exe package/
 
       - name: Upload Windows Binary
         uses: actions/upload-artifact@v4

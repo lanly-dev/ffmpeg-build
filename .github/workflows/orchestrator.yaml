@@ -8,8 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       ffmpeg_ref:
-        description: 'FFmpeg ref (tag, branch, or commit SHA).'
+        description: 'FFmpeg ref (tag like n8.1.2, branch, or commit SHA). Leave empty for latest stable tag.'
         required: false
+        default: ''
 
 permissions:
   contents: write
@@ -19,8 +20,8 @@ jobs:
     name: Resolve FFmpeg ref
     runs-on: ubuntu-latest
     outputs:
-      ref: ${{ steps.resolve.outputs.ref }}
-      tag: ${{ steps.resolve.outputs.tag }}
+      ref:  ${{ steps.resolve.outputs.ref }}
+      tag:  ${{ steps.resolve.outputs.tag }}
       date: ${{ steps.date.outputs.date }}
     steps:
       - name: Install tools
@@ -36,86 +37,131 @@ jobs:
           INPUT_REF: ${{ github.event.inputs.ffmpeg_ref }}
         run: |
           if [ -n "$INPUT_REF" ]; then
+            echo "Using provided ref: $INPUT_REF"
             echo "ref=$INPUT_REF" >> "$GITHUB_OUTPUT"
-            [[ "$INPUT_REF" =~ ^n[0-9] ]] && echo "tag=$INPUT_REF" >> "$GITHUB_OUTPUT" || echo "tag=" >> "$GITHUB_OUTPUT"
+            [[ "$INPUT_REF" =~ ^n[0-9] ]] \
+              && echo "tag=$INPUT_REF" >> "$GITHUB_OUTPUT" \
+              || echo "tag=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          TAG=$(curl -fsSL "https://api.github.com/repos/FFmpeg/FFmpeg/tags?per_page=100" | jq -r '.[].name' | grep -E '^n[0-9]+(\.[0-9]+)*$' | sort -Vr | head -n1)
+          # Pick latest stable nX.Y[.Z] tag (must be >= n8 to have --enable-whisper)
+          TAG=$(curl -fsSL "https://api.github.com/repos/FFmpeg/FFmpeg/tags?per_page=100" \
+            | jq -r '.[].name' \
+            | grep -E '^n[8-9][0-9]*(\.[0-9]+)*$|^n[1-9][0-9]+(\.[0-9]+)*$' \
+            | grep -Ev '\-dev$' \
+            | sort -Vr \
+            | head -n1)
+          if [ -z "$TAG" ]; then
+            echo "Failed to resolve latest FFmpeg tag (>= n8)" >&2
+            exit 1
+          fi
+          echo "Resolved latest tag: $TAG"
           echo "ref=$TAG" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-  # --- Step 2: Download whisper from whisper-build releases ---
-  download-whisper:
+  download_whisper:
     name: Download Whisper Dependencies
     needs: resolve_ref
     uses: ./.github/workflows/whisper.yaml
-    with:
-      tag_name: ${{ needs.resolve_ref.outputs.ref }}
 
-  # --- Step 3: Call the 3 separate build files (now waiting on Whisper) ---
-  build-linux:
-    needs: [resolve_ref, download-whisper]
+  build_linux:
+    name: Build Linux
+    needs: [resolve_ref, download_whisper]
     uses: ./.github/workflows/linux.yaml
     with:
       ffmpeg_ref: ${{ needs.resolve_ref.outputs.ref }}
 
-  build-macos:
-    needs: [resolve_ref, download-whisper]
+  build_macos:
+    name: Build macOS
+    needs: [resolve_ref, download_whisper]
     uses: ./.github/workflows/macos.yaml
     with:
       ffmpeg_ref: ${{ needs.resolve_ref.outputs.ref }}
 
-  build-windows:
-    needs: [resolve_ref, download-whisper]
+  build_windows:
+    name: Build Windows
+    needs: [resolve_ref, download_whisper]
     uses: ./.github/workflows/windows.yaml
     with:
       ffmpeg_ref: ${{ needs.resolve_ref.outputs.ref }}
 
-  # --- Triggers ONLY when all three finishes successfully ---
   release:
     name: Publish Release
-    needs: [resolve_ref, build-linux, build-macos, build-windows]
+    needs: [resolve_ref, build_linux, build_macos, build_windows]
     runs-on: ubuntu-latest
     steps:
-      - name: Download all artifacts
-        uses: actions/upload-artifact/merge@v4
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
         with:
-          name: all-ffmpeg-artifacts
-          pattern: ffmpeg-*
+          name: ffmpeg-linux
+          path: release/linux
 
-      - name: Consolidate release files
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ffmpeg-macos
+          path: release/macos
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ffmpeg-windows
+          path: release/windows
+
+      - name: Rename release files
         run: |
-          mkdir -p release
-          for artifact in ffmpeg-linux ffmpeg-macos ffmpeg-windows whisper-linux-latest whisper-macos-latest whisper-windows-latest; do
-            if ls "${artifact}"*; then
-              # Extract tarballs for artifacts that are archives
-              case "$artifact" in
-                whisper-*)
-                  mkdir -p "release/$(echo $artifact | sed 's/ffmpeg/whisper/')"
-                  cd "release/$(echo $artifact | sed 's/ffmpeg/whisper/')"
-                  tar xzf ../${artifact} 2>/dev/null || true
-                  cd ../../
-                  ;;
-                ffmpeg-linux)
-                  cp -rv "${artifact}/"* release/ 2>/dev/null || true
-                  ;;
-                *)
-                  mkdir -p "release/$artifact"
-                  cp -rv "${artifact}/"* "release/$artifact/" 2>/dev/null || true
-                  ;;
-              esac
-            fi
-          done
+          mkdir -p dist
+          cp release/linux/ffmpeg   dist/ffmpeg-linux
+          cp release/linux/ffprobe  dist/ffprobe-linux
+          cp release/macos/ffmpeg   dist/ffmpeg-macos
+          cp release/macos/ffprobe  dist/ffprobe-macos
+          cp release/windows/ffmpeg.exe   dist/ffmpeg-windows.exe
+          cp release/windows/ffprobe.exe  dist/ffprobe-windows.exe
+          ls -lh dist/
 
-      - name: Create or Update Release (Latest FFmpeg)
+      - name: Determine release tag
+        id: rel_tag
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          DATE="${{ needs.resolve_ref.outputs.date }}"
-          TAG="ffmpeg-n${DATE}"
-          # Fallback to a unique date-based tag if no n-tag exists
-          if [ -z "${{ needs.resolve_ref.outputs.tag }}" ]; then
-            TAG="ffmpeg-latest-${{ needs.resolve_ref.outputs.date }}"
+          BASE="build-${{ needs.resolve_ref.outputs.tag || needs.resolve_ref.outputs.ref }}-${{ needs.resolve_ref.outputs.date }}"
+          if gh release view "$BASE" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            i=2
+            while gh release view "${BASE}.${i}" --repo "${{ github.repository }}" > /dev/null 2>&1; do
+              i=$((i + 1))
+            done
+            echo "tag=${BASE}.${i}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=$BASE" >> "$GITHUB_OUTPUT"
           fi
-          BODY="Automated build from $(date -u +'%Y-%m-%d') using FFmpeg ref \`${{ needs.resolve_ref.outputs.ref }}\` with whisper support."
-          gh release create "$TAG" --title "FFmpeg ${{ needs.resolve_ref.outputs.ref }}" --notes "$BODY" release/ || true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.rel_tag.outputs.tag }}
+          name: >
+            FFmpeg ${{ needs.resolve_ref.outputs.tag || needs.resolve_ref.outputs.ref }}
+            Build (${{ needs.resolve_ref.outputs.date }})
+          body: |
+            Automated build of FFmpeg with Whisper speech-recognition support.
+
+            **FFmpeg source:** https://github.com/FFmpeg/FFmpeg
+            **Ref:** `${{ needs.resolve_ref.outputs.ref }}`
+            **Build date:** ${{ needs.resolve_ref.outputs.date }}
+            **Whisper library:** [lanly-dev/whisper-build](https://github.com/lanly-dev/whisper-build) (latest release)
+
+            **Features:**
+            - Video: x264 (H.264), x265 (HEVC), VP8/VP9
+            - Audio: Opus, Vorbis
+            - AI/ASR: `--enable-whisper` (whisper.cpp integration, FFmpeg 8+)
+            - GPU (Linux): VAAPI, NVENC/NVDEC
+            - GPU (Windows): NVENC/NVDEC, AMF
+            - GPU (macOS): VideoToolbox
+
+            **Platforms:**
+            - `ffmpeg-linux` / `ffprobe-linux` — fully static, no runtime deps
+            - `ffmpeg-macos` / `ffprobe-macos` — static (system frameworks linked)
+            - `ffmpeg-windows.exe` / `ffprobe-windows.exe` — static, no DLLs needed
+          files: dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

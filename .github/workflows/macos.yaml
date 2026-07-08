@@ -12,37 +12,62 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Install deps
-        run: brew update && brew install yasm nasm x264 x265 libvpx opus libvorbis pkg-config cmake
+        run: |
+          brew update
+          brew install yasm nasm x264 x265 libvpx opus libvorbis pkg-config cmake
 
       - name: Download Pre-built Whisper
         uses: actions/download-artifact@v4
         with:
           name: whisper-macos-latest
-          path: ${{ github.workspace }}/whisper
+          path: ${{ github.workspace }}/whisper_dl
 
-      - name: Extract Whisper
-        run: tar xzf "${{ github.workspace }}/whisper/whisper_install-darwin-universal.tar.gz" -C "${{ github.workspace }}"
-
-      - name: Fix Whisper pkg-config paths
+      - name: Extract and configure Whisper
         run: |
+          tar xzf "${{ github.workspace }}/whisper_dl/whisper_install-darwin-universal.tar.gz" \
+            -C "${{ github.workspace }}"
           WHISPER_DIR="${{ github.workspace }}/whisper_target"
+          # Fix pkg-config prefix (macOS sed requires empty string after -i)
           for pc in "$WHISPER_DIR/lib/pkgconfig"/*.pc; do
+            [ -f "$pc" ] || continue
             sed -i '' \
               -e "s|^prefix=.*|prefix=$WHISPER_DIR|" \
               -e 's|^libdir=.*|libdir=${prefix}/lib|' \
               -e 's|^includedir=.*|includedir=${prefix}/include|' \
               "$pc"
           done
+          echo "WHISPER_DIR=$WHISPER_DIR" >> "$GITHUB_ENV"
 
       - name: Build FFmpeg
         run: |
+          set -euxo pipefail
           git clone https://github.com/FFmpeg/FFmpeg.git
-          cd FFmpeg && git checkout "${{ inputs.ffmpeg_ref }}"
-          export PKG_CONFIG_PATH="${{ github.workspace }}/whisper_target/lib/pkgconfig:/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH"
-          ./configure --prefix="$PWD/install" --disable-debug --disable-doc --enable-gpl --enable-version3 --enable-static --disable-shared --enable-libx264 --enable-libx265 --enable-libvpx --enable-libopus --enable-libvorbis --enable-whisper --enable-videotoolbox
-          make -j"$(sysctl -n hw.logicalcpu)" && make install
-          mkdir -p package && cp -v install/bin/ffmpeg install/bin/ffprobe package/
+          cd FFmpeg
+          git checkout "${{ inputs.ffmpeg_ref }}"
+          export PKG_CONFIG_PATH="$WHISPER_DIR/lib/pkgconfig:/opt/homebrew/lib/pkgconfig:/usr/local/lib/pkgconfig"
+          ./configure \
+            --prefix="$PWD/install" \
+            --disable-debug \
+            --disable-doc \
+            --enable-gpl \
+            --enable-version3 \
+            --enable-static \
+            --disable-shared \
+            --enable-libx264 \
+            --enable-libx265 \
+            --enable-libvpx \
+            --enable-libopus \
+            --enable-libvorbis \
+            --enable-videotoolbox \
+            --enable-whisper \
+            --extra-cflags="-I$WHISPER_DIR/include" \
+            --extra-ldflags="-L$WHISPER_DIR/lib"
+          make -j"$(sysctl -n hw.logicalcpu)"
+          make install
+          mkdir -p package
+          cp -v install/bin/ffmpeg install/bin/ffprobe package/
 
       - name: Upload macOS Binary
         uses: actions/upload-artifact@v4

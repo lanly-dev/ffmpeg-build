@@ -2,55 +2,40 @@ name: Download Whisper from whisper-build Release
 
 on:
   workflow_call:
-    inputs:
-      tag_name:
-        required: true
-        type: string
 
 jobs:
   download-whisper:
     runs-on: ubuntu-latest
     steps:
-      # --- Get the latest release tag ---
-      - name: Get whisper-build latest release
+      - name: Get whisper-build latest release tag
         id: get_tag
         run: |
           LATEST=$(curl -fsSL "https://api.github.com/repos/lanly-dev/whisper-build/releases/latest" | jq -r '.tag_name')
           echo "tag=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "Using whisper-build release: $LATEST"
 
-      # --- Download all whisper install trees ---
-      - name: Download Linux whisper install tree
+      - name: Download whisper install trees
         run: |
           mkdir -p whisper_artifacts
-          curl -fsSL -o whisper_artifacts/whisper_install-linux-x86_64.tar.gz \
-            "https://github.com/lanly-dev/whisper-build/releases/download/${{ steps.get_tag.outputs.tag }}/whisper_install-linux-x86_64.tar.gz"
+          TAG="${{ steps.get_tag.outputs.tag }}"
+          BASE="https://github.com/lanly-dev/whisper-build/releases/download/$TAG"
+          curl -fsSL -o whisper_artifacts/whisper_install-linux-x86_64.tar.gz    "$BASE/whisper_install-linux-x86_64.tar.gz"
+          curl -fsSL -o whisper_artifacts/whisper_install-darwin-universal.tar.gz "$BASE/whisper_install-darwin-universal.tar.gz"
+          curl -fsSL -o whisper_artifacts/whisper_install-windows-x86_64.tar.gz  "$BASE/whisper_install-windows-x86_64.tar.gz"
 
-      - name: Download macOS whisper install tree
-        run: |
-          mkdir -p whisper_artifacts
-          curl -fsSL -o whisper_artifacts/whisper_install-darwin-universal.tar.gz \
-            "https://github.com/lanly-dev/whisper-build/releases/download/${{ steps.get_tag.outputs.tag }}/whisper_install-darwin-universal.tar.gz"
-
-      - name: Download Windows whisper install tree
-        run: |
-          mkdir -p whisper_artifacts
-          curl -fsSL -o whisper_artifacts/whisper_install-windows-x86_64.tar.gz \
-            "https://github.com/lanly-dev/whisper-build/releases/download/${{ steps.get_tag.outputs.tag }}/whisper_install-windows-x86_64.tar.gz"
-
-      # --- Upload combined artifacts for downstream jobs ---
-      - name: Upload Linux whisper to matrix
+      - name: Upload Linux whisper artifact
         uses: actions/upload-artifact@v4
         with:
           name: whisper-linux-latest
           path: whisper_artifacts/whisper_install-linux-x86_64.tar.gz
 
-      - name: Upload macOS whisper to matrix
+      - name: Upload macOS whisper artifact
         uses: actions/upload-artifact@v4
         with:
           name: whisper-macos-latest
           path: whisper_artifacts/whisper_install-darwin-universal.tar.gz
 
-      - name: Upload Windows whisper to matrix
+      - name: Upload Windows whisper artifact
         uses: actions/upload-artifact@v4
         with:
           name: whisper-windows-latest

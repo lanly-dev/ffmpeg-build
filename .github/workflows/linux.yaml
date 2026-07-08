@@ -12,40 +12,72 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Install deps
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential yasm nasm git pkg-config curl zip cmake \
             libx264-dev libx265-dev libvpx-dev libopus-dev libvorbis-dev libva-dev
 
+      - name: Install nv-codec-headers
+        run: |
+          git clone https://github.com/FFmpeg/nv-codec-headers.git
+          cd nv-codec-headers
+          sudo make install PREFIX=/usr/local
+
       - name: Download Pre-built Whisper
         uses: actions/download-artifact@v4
         with:
           name: whisper-linux-latest
-          path: ${{ github.workspace }}/whisper
+          path: ${{ github.workspace }}/whisper_dl
 
-      - name: Extract Whisper
-        run: tar xzf "${{ github.workspace }}/whisper/whisper_install-linux-x86_64.tar.gz" -C "${{ github.workspace }}"
-
-      - name: Fix Whisper pkg-config paths
+      - name: Extract and configure Whisper
         run: |
+          tar xzf "${{ github.workspace }}/whisper_dl/whisper_install-linux-x86_64.tar.gz" \
+            -C "${{ github.workspace }}"
           WHISPER_DIR="${{ github.workspace }}/whisper_target"
+          # Fix pkg-config prefix to point to actual extracted location
           for pc in "$WHISPER_DIR/lib/pkgconfig"/*.pc; do
+            [ -f "$pc" ] || continue
             sed -i \
               -e "s|^prefix=.*|prefix=$WHISPER_DIR|" \
               -e 's|^libdir=.*|libdir=${prefix}/lib|' \
               -e 's|^includedir=.*|includedir=${prefix}/include|' \
               "$pc"
           done
+          echo "WHISPER_DIR=$WHISPER_DIR" >> "$GITHUB_ENV"
 
       - name: Build FFmpeg
         run: |
+          set -euxo pipefail
           git clone https://github.com/FFmpeg/FFmpeg.git
-          cd FFmpeg && git checkout "${{ inputs.ffmpeg_ref }}"
-          export PKG_CONFIG_PATH="${{ github.workspace }}/whisper_target/lib/pkgconfig:$PKG_CONFIG_PATH"
-          ./configure --prefix="$PWD/install" --disable-debug --disable-doc --enable-gpl --enable-version3 --enable-static --disable-shared --enable-libx264 --enable-libx265 --enable-libvpx --enable-libopus --enable-libvorbis --enable-whisper --enable-vaapi --enable-ffnvcodec --enable-nvenc --enable-nvdec
-          make -j"$(nproc)" && make install
-          mkdir -p package && cp -v install/bin/ffmpeg install/bin/ffprobe package/
+          cd FFmpeg
+          git checkout "${{ inputs.ffmpeg_ref }}"
+          export PKG_CONFIG_PATH="$WHISPER_DIR/lib/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
+          ./configure \
+            --prefix="$PWD/install" \
+            --disable-debug \
+            --disable-doc \
+            --enable-gpl \
+            --enable-version3 \
+            --enable-static \
+            --disable-shared \
+            --enable-libx264 \
+            --enable-libx265 \
+            --enable-libvpx \
+            --enable-libopus \
+            --enable-libvorbis \
+            --enable-vaapi \
+            --enable-ffnvcodec \
+            --enable-nvenc \
+            --enable-nvdec \
+            --enable-whisper \
+            --extra-cflags="-I$WHISPER_DIR/include" \
+            --extra-ldflags="-L$WHISPER_DIR/lib"
+          make -j"$(nproc)"
+          make install
+          mkdir -p package
+          cp -v install/bin/ffmpeg install/bin/ffprobe package/
 
       - name: Upload Linux Binary
         uses: actions/upload-artifact@v4
