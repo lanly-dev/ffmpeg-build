@@ -48,7 +48,11 @@ jobs:
           cp -r "$WHISPER_DIR/lib"/* /mingw64/lib/
           cp -r "$WHISPER_DIR/include"/* /mingw64/include/
           for pc in "$WHISPER_DIR/lib/pkgconfig"/*.pc; do
-            [ -f "$pc" ] && sed -i 's|^prefix=.*|prefix=/mingw64|' "/mingw64/lib/pkgconfig/$(basename "$pc")" || true
+            [ -f "$pc" ] && sed -i \
+              -e 's|^prefix=.*|prefix=/mingw64|' \
+              -e 's|^libdir=.*|libdir=${prefix}/lib|' \
+              -e 's|^includedir=.*|includedir=${prefix}/include|' \
+              "/mingw64/lib/pkgconfig/$(basename "$pc")" || true
           done
 
       - name: Build FFmpeg
