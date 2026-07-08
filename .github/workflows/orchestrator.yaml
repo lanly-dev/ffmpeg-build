@@ -49,6 +49,8 @@ jobs:
     name: Download Whisper Dependencies
     needs: resolve_ref
     uses: ./.github/workflows/whisper.yaml
+    with:
+      tag_name: ${{ needs.resolve_ref.outputs.ref }}
 
   # --- Step 3: Call the 3 separate build files (now waiting on Whisper) ---
   build-linux:
