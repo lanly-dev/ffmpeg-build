@@ -44,9 +44,12 @@ jobs:
         shell: msys2 {0}
         run: |
           WORKSPACE=$(cygpath "$GITHUB_WORKSPACE")
-          cp -r "$WORKSPACE/whisper_download/usr/local/lib"/* /mingw64/lib/
-          cp -r "$WORKSPACE/whisper_download/usr/local/include"/* /mingw64/include/
-          cp -r "$WORKSPACE/whisper_download/usr/local/lib/pkgconfig"/* /mingw64/lib/pkgconfig/
+          WHISPER_DIR="$WORKSPACE/whisper_download/whisper_target"
+          cp -r "$WHISPER_DIR/lib"/* /mingw64/lib/
+          cp -r "$WHISPER_DIR/include"/* /mingw64/include/
+          for pc in "$WHISPER_DIR/lib/pkgconfig"/*.pc; do
+            [ -f "$pc" ] && sed -i 's|^prefix=.*|prefix=/mingw64|' "/mingw64/lib/pkgconfig/$(basename "$pc")" || true
+          done
 
       - name: Verify fontconfig.pc exists
         shell: msys2 {0}
