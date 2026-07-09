@@ -24,19 +24,19 @@ jobs:
           curl -fsSL -o whisper_artifacts/whisper_install-windows-x86_64.tar.gz  "$BASE/whisper_install-windows-x86_64.tar.gz"
 
       - name: Upload Linux whisper artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: whisper-linux-latest
           path: whisper_artifacts/whisper_install-linux-x86_64.tar.gz
 
       - name: Upload macOS whisper artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: whisper-macos-latest
           path: whisper_artifacts/whisper_install-darwin-universal.tar.gz
 
       - name: Upload Windows whisper artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: whisper-windows-latest
           path: whisper_artifacts/whisper_install-windows-x86_64.tar.gz

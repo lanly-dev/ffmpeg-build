@@ -11,7 +11,7 @@ jobs:
   build:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install deps
         run: |
@@ -19,7 +19,7 @@ jobs:
           brew install yasm nasm x264 x265 libvpx opus libvorbis pkg-config cmake
 
       - name: Download Pre-built Whisper
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: whisper-macos-latest
           path: ${{ github.workspace }}/whisper_dl
@@ -29,15 +29,23 @@ jobs:
           tar xzf "${{ github.workspace }}/whisper_dl/whisper_install-darwin-universal.tar.gz" \
             -C "${{ github.workspace }}"
           WHISPER_DIR="${{ github.workspace }}/whisper_target"
-          # Fix pkg-config prefix (macOS sed requires empty string after -i)
-          for pc in "$WHISPER_DIR/lib/pkgconfig"/*.pc; do
-            [ -f "$pc" ] || continue
-            sed -i '' \
-              -e "s|^prefix=.*|prefix=$WHISPER_DIR|" \
-              -e 's|^libdir=.*|libdir=${prefix}/lib|' \
-              -e 's|^includedir=.*|includedir=${prefix}/include|' \
-              "$pc"
-          done
+
+          # Rewrite pkg-config prefix to the absolute extraction path.
+          # The whisper-build .pc uses ${pcfiledir}/../.. which not all pkg-config
+          # versions resolve correctly; pin to the concrete path instead.
+          PC_FILE="$WHISPER_DIR/lib/pkgconfig/whisper.pc"
+          if [ ! -f "$PC_FILE" ]; then
+            echo "ERROR: whisper.pc not found at $PC_FILE" >&2
+            find "$WHISPER_DIR" -name "*.pc" >&2 || true
+            exit 1
+          fi
+          sed -i '' "s|^prefix=.*|prefix=$WHISPER_DIR|" "$PC_FILE"
+          echo "=== whisper.pc after rewrite ===" && cat "$PC_FILE"
+
+          # Sanity-check pkg-config can resolve it
+          PKG_CONFIG_PATH="$WHISPER_DIR/lib/pkgconfig" pkg-config --modversion whisper
+          PKG_CONFIG_PATH="$WHISPER_DIR/lib/pkgconfig" pkg-config --cflags --libs whisper
+
           echo "WHISPER_DIR=$WHISPER_DIR" >> "$GITHUB_ENV"
 
       - name: Build FFmpeg
@@ -70,7 +78,7 @@ jobs:
           cp -v install/bin/ffmpeg install/bin/ffprobe package/
 
       - name: Upload macOS Binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ffmpeg-macos
           path: FFmpeg/package/

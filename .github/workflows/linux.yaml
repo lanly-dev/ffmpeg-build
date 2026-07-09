@@ -11,7 +11,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install deps
         run: |
@@ -26,7 +26,7 @@ jobs:
           sudo make install PREFIX=/usr/local
 
       - name: Download Pre-built Whisper
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: whisper-linux-latest
           path: ${{ github.workspace }}/whisper_dl
@@ -36,15 +36,23 @@ jobs:
           tar xzf "${{ github.workspace }}/whisper_dl/whisper_install-linux-x86_64.tar.gz" \
             -C "${{ github.workspace }}"
           WHISPER_DIR="${{ github.workspace }}/whisper_target"
-          # Fix pkg-config prefix to point to actual extracted location
-          for pc in "$WHISPER_DIR/lib/pkgconfig"/*.pc; do
-            [ -f "$pc" ] || continue
-            sed -i \
-              -e "s|^prefix=.*|prefix=$WHISPER_DIR|" \
-              -e 's|^libdir=.*|libdir=${prefix}/lib|' \
-              -e 's|^includedir=.*|includedir=${prefix}/include|' \
-              "$pc"
-          done
+
+          # Rewrite pkg-config prefix to the absolute extraction path.
+          # The whisper-build .pc uses ${pcfiledir}/../.. which not all pkg-config
+          # versions resolve correctly; pin to the concrete path instead.
+          PC_FILE="$WHISPER_DIR/lib/pkgconfig/whisper.pc"
+          if [ ! -f "$PC_FILE" ]; then
+            echo "ERROR: whisper.pc not found at $PC_FILE" >&2
+            find "$WHISPER_DIR" -name "*.pc" >&2 || true
+            exit 1
+          fi
+          sed -i "s|^prefix=.*|prefix=$WHISPER_DIR|" "$PC_FILE"
+          echo "=== whisper.pc after rewrite ===" && cat "$PC_FILE"
+
+          # Sanity-check pkg-config can resolve it
+          PKG_CONFIG_PATH="$WHISPER_DIR/lib/pkgconfig" pkg-config --modversion whisper
+          PKG_CONFIG_PATH="$WHISPER_DIR/lib/pkgconfig" pkg-config --cflags --libs whisper
+
           echo "WHISPER_DIR=$WHISPER_DIR" >> "$GITHUB_ENV"
 
       - name: Build FFmpeg
@@ -53,7 +61,7 @@ jobs:
           git clone https://github.com/FFmpeg/FFmpeg.git
           cd FFmpeg
           git checkout "${{ inputs.ffmpeg_ref }}"
-          export PKG_CONFIG_PATH="$WHISPER_DIR/lib/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
+          export PKG_CONFIG_PATH="$WHISPER_DIR/lib/pkgconfig:/usr/local/lib/pkgconfig"
           ./configure \
             --prefix="$PWD/install" \
             --disable-debug \
@@ -80,7 +88,7 @@ jobs:
           cp -v install/bin/ffmpeg install/bin/ffprobe package/
 
       - name: Upload Linux Binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ffmpeg-linux
           path: FFmpeg/package/
