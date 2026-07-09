@@ -70,6 +70,7 @@ jobs:
             --enable-libvorbis \
             --enable-videotoolbox \
             --enable-whisper \
+            --pkg-config-flags="--static" \
             --extra-cflags="-I$WHISPER_DIR/include" \
             --extra-ldflags="-L$WHISPER_DIR/lib"
           make -j"$(sysctl -n hw.logicalcpu)"

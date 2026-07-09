@@ -80,6 +80,7 @@ jobs:
             --enable-nvenc \
             --enable-nvdec \
             --enable-whisper \
+            --pkg-config-flags="--static" \
             --extra-cflags="-I$WHISPER_DIR/include" \
             --extra-ldflags="-L$WHISPER_DIR/lib"
           make -j"$(nproc)" 2>&1 | tee /tmp/make.log; test ${PIPESTATUS[0]} -eq 0
