@@ -82,18 +82,22 @@ jobs:
             --enable-whisper \
             --extra-cflags="-I$WHISPER_DIR/include" \
             --extra-ldflags="-L$WHISPER_DIR/lib"
-          make -j"$(nproc)"
+          make -j"$(nproc)" 2>&1 | tee /tmp/make.log; test ${PIPESTATUS[0]} -eq 0
           make install
           mkdir -p package
           cp -v install/bin/ffmpeg install/bin/ffprobe package/
-          echo "=== Build complete ==="
 
-      - name: Upload config.log on failure
+      - name: Show make errors on failure
         if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ffmpeg-linux-config-log
-          path: FFmpeg/ffbuild/config.log
+        run: |
+          echo "=== Last 100 lines of make output ==="
+          tail -100 /tmp/make.log || true
+          echo "=== Installed whisper libs ==="
+          ls -lh "$WHISPER_DIR/lib/" || true
+          echo "=== whisper.pc ==="
+          cat "$WHISPER_DIR/lib/pkgconfig/whisper.pc" || true
+          echo "=== pkg-config static output ==="
+          PKG_CONFIG_PATH="$WHISPER_DIR/lib/pkgconfig" pkg-config --static --libs whisper || true
 
       - name: Upload Linux Binary
         uses: actions/upload-artifact@v7
