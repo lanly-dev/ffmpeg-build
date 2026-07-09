@@ -77,6 +77,13 @@ jobs:
           mkdir -p package
           cp -v install/bin/ffmpeg install/bin/ffprobe package/
 
+      - name: Upload config.log on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ffmpeg-macos-config-log
+          path: FFmpeg/ffbuild/config.log
+
       - name: Upload macOS Binary
         uses: actions/upload-artifact@v7
         with:

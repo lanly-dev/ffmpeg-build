@@ -121,6 +121,19 @@ jobs:
           mkdir -p package
           cp -v install/bin/ffmpeg.exe install/bin/ffprobe.exe package/
 
+      - name: Upload config.log on failure
+        if: failure()
+        shell: msys2 {0}
+        run: |
+          cat FFmpeg/ffbuild/config.log 2>/dev/null | tail -200 || true
+
+      - name: Upload config.log artifact on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ffmpeg-windows-config-log
+          path: FFmpeg/ffbuild/config.log
+
       - name: Upload Windows Binary
         uses: actions/upload-artifact@v7
         with:
