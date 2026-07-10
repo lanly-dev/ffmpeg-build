@@ -43,8 +43,20 @@ jobs:
           echo "=== whisper.pc after rewrite ===" && cat "$PC_FILE"
 
           # Sanity-check pkg-config can resolve it
-          PKG_CONFIG_PATH="$WHISPER_DIR/lib/pkgconfig" pkg-config --modversion whisper
+          WHISPER_VER=$(PKG_CONFIG_PATH="$WHISPER_DIR/lib/pkgconfig" pkg-config --modversion whisper 2>&1)
+          echo "whisper version from pkg-config: $WHISPER_VER"
           PKG_CONFIG_PATH="$WHISPER_DIR/lib/pkgconfig" pkg-config --cflags --libs whisper
+
+          # Show full whisper.pc for debugging
+          echo "=== whisper.pc ===" && cat "$WHISPER_DIR/lib/pkgconfig/whisper.pc"
+
+          # Check minimum version (1.7.5 = 1,7,5)
+          IFS='.' read -r MAJ MIN PAT <<< "$WHISPER_VER"
+          if [ "$MAJ" -lt 1 ] || ([ "$MAJ" -eq 1 ] && [ "$MIN" -lt 7 ]) || ([ "$MAJ" -eq 1 ] && [ "$MIN" -eq 7 ] && [ "$PAT" -lt 5 ]); then
+            echo "ERROR: whisper version $WHISPER_VER is below required 1.7.5" >&2
+            exit 1
+          fi
+          echo "whisper version $WHISPER_VER meets minimum requirement"
 
           echo "WHISPER_DIR=$WHISPER_DIR" >> "$GITHUB_ENV"
 
